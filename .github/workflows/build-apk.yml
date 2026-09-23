@@ -29,6 +29,7 @@ jobs:
         shell: bash
         run: |
           set -e
+
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
@@ -45,11 +46,11 @@ jobs:
           set -e
 
           rm -rf extracted
-          mkdir extracted
+          mkdir -p extracted
 
           unzip -q "${{ steps.zip.outputs.ZIP_FILE }}" -d extracted
 
-          echo "محتويات الملف:"
+          echo "محتويات المشروع:"
           find extracted -maxdepth 3 -type f | head -100
 
       - name: Locate Android project
@@ -75,6 +76,33 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
           echo "Android project: $PROJECT_DIR"
 
+      - name: Create debug keystore
+        working-directory: ${{ steps.project.outputs.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          if [ ! -f "debug.keystore" ]; then
+            echo "Creating debug.keystore..."
+
+            keytool -genkeypair \
+              -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+
+            echo "debug.keystore created successfully."
+          else
+            echo "debug.keystore already exists."
+          fi
+
+          ls -lh debug.keystore
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -85,6 +113,8 @@ jobs:
         shell: bash
         run: |
           set -e
+
+          echo "Starting Android APK build..."
 
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
@@ -106,11 +136,18 @@ jobs:
 
           if [ -z "$APK" ]; then
             echo "لم يتم إنشاء APK"
+            echo "البحث عن ملفات APK:"
+            find "${{ steps.project.outputs.PROJECT_DIR }}" \
+              -type f \
+              -name "*.apk" \
+              -print
+
             exit 1
           fi
 
           echo "APK=$APK" >> "$GITHUB_OUTPUT"
-          echo "APK generated: $APK"
+          echo "APK generated successfully:"
+          echo "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
