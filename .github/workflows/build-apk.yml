@@ -1,0 +1,120 @@
+name: Build WASEEM MEDICAL PRO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Find project ZIP
+        id: zip
+        shell: bash
+        run: |
+          set -e
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "لم يتم العثور على ملف ZIP"
+            exit 1
+          fi
+
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "Found: $ZIP_FILE"
+
+      - name: Extract project
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf extracted
+          mkdir extracted
+
+          unzip -q "${{ steps.zip.outputs.ZIP_FILE }}" -d extracted
+
+          echo "محتويات الملف:"
+          find extracted -maxdepth 3 -type f | head -100
+
+      - name: Locate Android project
+        id: project
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT_DIR=$(find extracted \
+            -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print \
+            | head -n 1 \
+            | xargs -r dirname)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "لم يتم العثور على مشروع Android/Gradle"
+            echo "الملفات الموجودة:"
+            find extracted -maxdepth 5 -type f | head -200
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Android project: $PROJECT_DIR"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+
+      - name: Build Debug APK
+        working-directory: ${{ steps.project.outputs.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Find APK
+        id: apk
+        shell: bash
+        run: |
+          set -e
+
+          APK=$(find "${{ steps.project.outputs.PROJECT_DIR }}" \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "لم يتم إنشاء APK"
+            exit 1
+          fi
+
+          echo "APK=$APK" >> "$GITHUB_OUTPUT"
+          echo "APK generated: $APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WASEEM-MEDICAL-PRO-APK
+          path: ${{ steps.apk.outputs.APK }}
+          if-no-files-found: error
