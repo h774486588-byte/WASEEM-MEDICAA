@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,6 +24,9 @@ import com.example.data.repository.ClinicRepository
 import com.example.ui.screens.MainScreen
 import com.example.ui.theme.WaseemMedicalTheme
 import com.example.ui.viewmodel.ClinicViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -40,21 +44,38 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        try {
-            val database = WaseemDatabase.getDatabase(this, lifecycleScope)
-            val repository = ClinicRepository(database.clinicDao(), database)
-            val viewModel = ClinicViewModel(repository)
-
-            setContent {
-                WaseemMedicalTheme {
-                    MainScreen(viewModel = viewModel)
-                }
+        // عرض شاشة بسيطة أولًا؛ لا نُنشئ قاعدة البيانات أو الـViewModel داخل onCreate
+        // حتى لا يحدث استثناء أثناء الإقلاع قبل أن يتم تركيب واجهة Compose.
+        setContent {
+            WaseemMedicalTheme {
+                StartupLoadingScreen()
             }
-        } catch (error: Throwable) {
-            showStartupError(
-                "تعذر تشغيل النظام أثناء التهيئة. أرسل نص الخطأ الظاهر للمطور.",
-                error.stackTraceToString()
-            )
+        }
+
+        lifecycleScope.launch {
+            try {
+                // فتح قاعدة البيانات والتحقق من الجداول وبيانات البداية خارج خيط الواجهة.
+                val database = withContext(Dispatchers.IO) {
+                    WaseemDatabase.getDatabase(this@MainActivity, lifecycleScope).also {
+                        WaseemDatabase.ensureEssentialData(it.clinicDao())
+                    }
+                }
+
+                val repository = ClinicRepository(database.clinicDao(), database)
+                val viewModel = ClinicViewModel(repository)
+
+                // لا نعرض الشاشة الرئيسية إلا بعد نجاح تهيئة قاعدة البيانات كاملة.
+                setContent {
+                    WaseemMedicalTheme {
+                        MainScreen(viewModel = viewModel)
+                    }
+                }
+            } catch (error: Throwable) {
+                showStartupError(
+                    "تعذر تشغيل النظام أثناء التهيئة. أرسل تفاصيل الخطأ للمطور.",
+                    error.stackTraceToString()
+                )
+            }
         }
     }
 
@@ -64,6 +85,26 @@ class MainActivity : ComponentActivity() {
                 StartupErrorScreen(summary = summary, details = details)
             }
         }
+    }
+}
+
+@Composable
+private fun StartupLoadingScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "نظام وسيم الطبي PRO",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+        )
+        CircularProgressIndicator(modifier = Modifier.padding(top = 24.dp))
+        Text(
+            text = "جاري تجهيز قاعدة البيانات وتشغيل النظام...",
+            modifier = Modifier.padding(top = 16.dp),
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
