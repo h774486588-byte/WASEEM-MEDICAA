@@ -55,8 +55,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 // فتح قاعدة البيانات والتحقق من الجداول وبيانات البداية خارج خيط الواجهة.
+                // يتم تنفيذ التهيئة مرة واحدة فقط هنا لمنع سباق SQLite عند أول تشغيل.
                 val database = withContext(Dispatchers.IO) {
-                    WaseemDatabase.getDatabase(this@MainActivity, lifecycleScope).also {
+                    WaseemDatabase.getDatabase(this@MainActivity).also {
                         WaseemDatabase.ensureEssentialData(it.clinicDao())
                     }
                 }
