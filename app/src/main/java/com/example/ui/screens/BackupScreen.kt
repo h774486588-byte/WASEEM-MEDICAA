@@ -43,6 +43,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -79,6 +80,13 @@ fun BackupScreen(
     var lastBackupTime by remember { mutableStateOf("لا توجد نسخة محفوظة بعد") }
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(settings) {
+        settings?.let {
+            autoSyncEnabled = it.autoSyncGoogleDrive
+            selectedInterval = it.syncIntervalHours
+        }
+    }
 
     val intervals = listOf(
         Pair(1, "كل ساعة"),
@@ -221,54 +229,33 @@ fun BackupScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text("المزامنة مع Google Drive", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                                    Text("حفظ تلقائي سحابي آمن", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("الربط السحابي غير مفعّل في هذه النسخة", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             Switch(
-                                checked = autoSyncEnabled,
-                                onCheckedChange = {
-                                    autoSyncEnabled = it
-                                    settings?.let { s ->
-                                        viewModel.updateSettings(s.copy(autoSyncGoogleDrive = it)) { _, _ -> }
-                                    }
-                                    Toast.makeText(context, if (it) "تم تفعيل المزامنة التلقائية السحابية" else "تم إيقاف المزامنة السحابية", Toast.LENGTH_SHORT).show()
-                                }
+                                checked = false,
+                                onCheckedChange = {},
+                                enabled = false
                             )
                         }
 
-                        if (autoSyncEnabled) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text("تحديد دورة المزامنة التلقائية:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            intervals.forEach { (hours, label) ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedInterval == hours,
-                                        onClick = {
-                                            selectedInterval = hours
-                                            settings?.let { s ->
-                                                viewModel.updateSettings(s.copy(syncIntervalHours = hours)) { _, _ -> }
-                                            }
-                                        }
-                                    )
-                                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                                }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CloudDone, contentDescription = null, tint = MedicalBlue)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "النسخ الاحتياطي المحلي يعمل حاليًا. يمكنك إنشاء ملف JSON ثم حفظه أو رفعه يدويًا إلى Google Drive.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("حالة آخر مزامنة: نجحت ✓", color = MedicalGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                                    Text("الحالة محفوظة محليًا عند إنشاء النسخة.", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
+                        }
                         }
                     }
                 }
