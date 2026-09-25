@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,12 +48,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,6 +93,9 @@ import com.example.ui.theme.MedicalRed
 import com.example.ui.theme.MedicalRedLight
 import com.example.ui.theme.MedicalTeal
 import com.example.ui.viewmodel.ClinicViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.max
 
 // =====================================================================
@@ -110,7 +117,8 @@ fun AddPatientDialog(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("ذكر") }
-    var dateOfBirth by remember { mutableStateOf("1990-01-01") }
+    var dateOfBirth by remember { mutableStateOf("") }
+    var showDateOfBirthPicker by remember { mutableStateOf(false) }
     var address by remember { mutableStateOf("") }
     var maritalStatus by remember { mutableStateOf("متزوج") }
     var profession by remember { mutableStateOf("") }
@@ -147,10 +155,32 @@ fun AddPatientDialog(
     var complaint by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var initialBalanceStr by remember { mutableStateOf("0") }
-    var autoCreateFirstSession by remember { mutableStateOf(true) }
+    var autoCreateFirstSession by remember { mutableStateOf(false) }
     var notifyDoctor by remember { mutableStateOf(true) }
 
     var createdPatientForCard by remember { mutableStateOf<Patient?>(null) }
+
+    if (showDateOfBirthPicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDateOfBirthPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            dateOfBirth = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date(it))
+                        }
+                        showDateOfBirthPicker = false
+                    }
+                ) { Text("اختيار") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDateOfBirthPicker = false }) { Text("إلغاء") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     if (createdPatientForCard != null) {
         PatientCardPreviewDialog(
@@ -232,6 +262,22 @@ fun AddPatientDialog(
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = dateOfBirth,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("تاريخ الميلاد") },
+                        placeholder = { Text("اضغط لاختيار تاريخ الميلاد") },
+                        trailingIcon = {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "اختيار تاريخ الميلاد")
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDateOfBirthPicker = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = address,
