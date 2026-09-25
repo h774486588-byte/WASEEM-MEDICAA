@@ -15,24 +15,55 @@ concurrency:
 jobs:
   build:
     name: Build and Test APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
-      - name: Checkout source manually
-        shell: bash
-        run: |
-          set -euxo pipefail
-          git init
-          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          git fetch --depth 1 origin "${{ github.sha }}"
-          git checkout --detach FETCH_HEAD
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Runner preflight
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
+
+      - name: Verify project files
         shell: bash
         run: |
           set -euxo pipefail
-          java -version
-          gradle --version
           test -f settings.gradle.kts
+          test -f build.gradle.kts
           test -f app/build.gradle.kts
           test -d app/src/main
+          test -f gradle/wrapper/gradle-wrapper.properties || true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Build unit tests and debug APK
+        run: gradle test :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WASEEM-MEDICAL-PRO-debug
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write build summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### WASEEM MEDICAL PRO" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build: debug APK" >> "$GITHUB_STEP_SUMMARY"
