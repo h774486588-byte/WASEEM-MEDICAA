@@ -171,7 +171,7 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     suspend fun updateAppointmentStatus(appointmentId: Long,newStatus: String): Result<Unit> {
         val allowedStatuses = setOf("محجوز", "حضر", "لم يحضر", "أُلغي", "مكتمل")
         if (newStatus !in allowedStatuses) return Result.failure(IllegalArgumentException("حالة الموعد غير صالحة"))
-        val appointment = dao.getAllAppointmentsSnapshot().firstOrNull { it.id == appointmentId }
+        val appointment = dao.getAppointmentById(appointmentId)
             ?: return Result.failure(IllegalArgumentException("الموعد غير موجود"))
         if (appointment.status == newStatus) return Result.success(Unit)
         dao.updateAppointment(appointment.copy(status = newStatus))
