@@ -345,7 +345,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     }
 
     suspend fun addUser(user:AppUser):Long{
-        val normalized = user.copy(passwordHash = PasswordHasher.ensureHashed(user.passwordHash))
+        val plainPassword = user.passwordHash.trim()
+        if (plainPassword.length < 4) throw IllegalArgumentException("كلمة المرور يجب ألا تقل عن 4 أحرف")
+        val normalized = user.copy(passwordHash = PasswordHasher.hash(plainPassword))
         val id=dao.insertUser(normalized)
         dao.insertAuditLog(AuditLog(user="المدير العام",action="إضافة مستخدم جديد",details="تم إنشاء حساب المستخدم: ${user.fullName} (${user.username})"))
         return id
