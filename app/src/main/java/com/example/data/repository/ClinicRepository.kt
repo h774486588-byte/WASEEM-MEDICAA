@@ -307,6 +307,7 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
         val p=password.trim()
         if (u.isBlank() || p.isBlank()) return null
         val user=dao.getUserByUsername(u) ?: return null
+        if (!user.isActive) return null
 
         if (!PasswordHasher.matches(p, user.passwordHash)) return null
 
