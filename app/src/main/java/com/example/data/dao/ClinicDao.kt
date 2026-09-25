@@ -131,6 +131,9 @@ interface ClinicDao {
     @Query("SELECT * FROM appointments WHERE doctorId = :doctorId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' LIMIT 1")
     suspend fun checkDoctorAppointmentConflict(doctorId: Long, date: String, timeSlot: String): Appointment?
 
+    @Query("SELECT * FROM appointments WHERE therapistId = :therapistId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' LIMIT 1")
+    suspend fun checkTherapistAppointmentConflict(therapistId: Long, date: String, timeSlot: String): Appointment?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAppointment(appointment: Appointment): Long
 
@@ -223,33 +226,26 @@ interface ClinicDao {
     @Query("DELETE FROM employees WHERE id = :id")
     suspend fun deleteEmployee(id: Long)
 
-    @Query("SELECT * FROM salary_deductions ORDER BY date DESC")
-    fun getAllDeductions(): Flow<List<SalaryDeduction>>
+    // --- USERS, SETTINGS, NOTIFICATIONS, MESSAGES, LICENSE, AUDIT ---
+    @Query("SELECT * FROM users ORDER BY id DESC")
+    fun getAllUsers(): Flow<List<AppUser>>
 
-    @Query("SELECT * FROM salary_deductions WHERE employeeId = :employeeId ORDER BY date DESC")
-    fun getDeductionsByEmployee(employeeId: Long): Flow<List<SalaryDeduction>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertDeduction(deduction: SalaryDeduction): Long
-
-    @Query("DELETE FROM salary_deductions WHERE id = :id")
-    suspend fun deleteDeduction(id: Long)
-
-    // --- INVENTORY ---
-    @Query("SELECT * FROM inventory ORDER BY name ASC")
-    fun getAllInventory(): Flow<List<InventoryItem>>
+    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
+    suspend fun getUserByUsername(username: String): AppUser?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertInventoryItem(item: InventoryItem): Long
+    suspend fun insertUser(user: AppUser): Long
 
-    @Update
-    suspend fun updateInventoryItem(item: InventoryItem)
+    @Query("SELECT * FROM branches ORDER BY id ASC")
+    fun getAllBranches(): Flow<List<Branch>>
 
-    @Query("DELETE FROM inventory WHERE id = :id")
-    suspend fun deleteInventoryItem(id: Long)
+    @Query("SELECT COUNT(*) FROM branches")
+    suspend fun getBranchesCountDirect(): Int
 
-    // --- NOTIFICATIONS ---
-    @Query("SELECT * FROM notifications ORDER BY timestamp DESC")
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBranch(branch: Branch): Long
+
+    @Query("SELECT * FROM notifications ORDER BY id DESC")
     fun getAllNotifications(): Flow<List<AppNotification>>
 
     @Query("SELECT COUNT(*) FROM notifications WHERE isRead = 0")
@@ -258,131 +254,21 @@ interface ClinicDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNotification(notification: AppNotification): Long
 
-    @Query("UPDATE notifications SET isRead = 1")
-    suspend fun markAllNotificationsRead()
-
-    @Query("DELETE FROM notifications")
-    suspend fun clearAllNotifications()
-
-    // --- MESSAGES & TEMPLATES ---
-    @Query("SELECT * FROM messages ORDER BY createdAt DESC")
-    fun getAllMessages(): Flow<List<AppMessage>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: AppMessage): Long
 
-    @Query("UPDATE messages SET status = :status WHERE id = :id")
-    suspend fun updateMessageStatus(id: Long, status: String)
-
-    @Query("SELECT * FROM message_templates")
-    fun getAllTemplates(): Flow<List<MessageTemplate>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTemplate(template: MessageTemplate): Long
-
-    @Update
-    suspend fun updateTemplate(template: MessageTemplate)
-
-    // --- AUDIT LOGS ---
-    @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 300")
-    fun getAllAuditLogs(): Flow<List<AuditLog>>
+    @Query("SELECT * FROM messages ORDER BY id DESC")
+    fun getAllMessages(): Flow<List<AppMessage>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAuditLog(log: AuditLog): Long
 
-    // --- LICENSE & SETTINGS ---
-    @Query("SELECT * FROM licenses WHERE id = 1")
+    @Query("SELECT * FROM audit_logs ORDER BY id DESC")
+    fun getAllAuditLogs(): Flow<List<AuditLog>>
+
+    @Query("SELECT * FROM licenses LIMIT 1")
     fun getLicense(): Flow<AppLicense?>
 
-    @Query("SELECT * FROM licenses WHERE id = 1")
-    suspend fun getLicenseDirect(): AppLicense?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun setLicense(license: AppLicense)
-
-    @Query("SELECT * FROM settings WHERE id = 1")
+    @Query("SELECT * FROM settings LIMIT 1")
     fun getSettings(): Flow<CenterSettings?>
-
-    @Query("SELECT * FROM settings WHERE id = 1")
-    suspend fun getSettingsDirect(): CenterSettings?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun updateSettings(settings: CenterSettings)
-
-    // Clear all for restore
-    @Query("DELETE FROM patients")
-    suspend fun clearPatients()
-    @Query("DELETE FROM appointments")
-    suspend fun clearAppointments()
-    @Query("DELETE FROM sessions")
-    suspend fun clearSessions()
-    @Query("DELETE FROM packages")
-    suspend fun clearPackages()
-    @Query("DELETE FROM receipts")
-    suspend fun clearReceipts()
-    @Query("DELETE FROM expenses")
-    suspend fun clearExpenses()
-
-    // --- BRANCHES ---
-    @Query("SELECT * FROM branches ORDER BY isMainBranch DESC, name ASC")
-    fun getAllBranches(): Flow<List<Branch>>
-
-    @Query("SELECT * FROM branches WHERE id = :id")
-    suspend fun getBranchById(id: Long): Branch?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBranch(branch: Branch): Long
-
-    @Update
-    suspend fun updateBranch(branch: Branch)
-
-    @Query("DELETE FROM branches WHERE id = :id AND isMainBranch = 0")
-    suspend fun deleteBranch(id: Long)
-
-    @Query("SELECT COUNT(*) FROM branches")
-    suspend fun getBranchesCountDirect(): Int
-
-    @Query("SELECT * FROM branches")
-    suspend fun getAllBranchesDirect(): List<Branch>
-
-    // --- USERS & AUTHENTICATION ---
-    @Query("SELECT * FROM users ORDER BY isSystemOwner DESC, id ASC")
-    fun getAllUsers(): Flow<List<AppUser>>
-
-    @Query("SELECT * FROM users")
-    suspend fun getAllUsersDirect(): List<AppUser>
-
-    @Query("SELECT * FROM users WHERE id = :id")
-    suspend fun getUserById(id: Long): AppUser?
-
-    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
-    suspend fun getUserByUsername(username: String): AppUser?
-
-    @Query("SELECT * FROM users WHERE username = :username AND passwordHash = :password LIMIT 1")
-    suspend fun authenticate(username: String, password: String): AppUser?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUser(user: AppUser): Long
-
-    @Update
-    suspend fun updateUser(user: AppUser)
-
-    @Query("UPDATE users SET passwordHash = :newPassword WHERE id = :userId")
-    suspend fun updateUserPassword(userId: Long, newPassword: String)
-
-    @Query("DELETE FROM users WHERE id = :id AND isSystemOwner = 0")
-    suspend fun deleteUser(id: Long)
-
-    @Query("SELECT COUNT(*) FROM users")
-    suspend fun getUsersCountDirect(): Int
-
-    // Reset Operational Data (Preserves system owner, license, settings, branches)
-    @Query("DELETE FROM package_sessions")
-    suspend fun clearPackageSessions()
-
-    @Query("DELETE FROM salary_deductions")
-    suspend fun clearDeductions()
-
-    @Query("DELETE FROM audit_logs")
-    suspend fun clearAuditLogs()
 }
