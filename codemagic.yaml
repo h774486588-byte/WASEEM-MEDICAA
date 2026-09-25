@@ -7,12 +7,31 @@ workflows:
     scripts:
       - name: Verify native Android project
         script: |
+          set -e
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
+          test -f gradle/wrapper/gradle-wrapper.properties
           test ! -f pubspec.yaml || { echo "ERROR: Flutter configuration detected unexpectedly"; exit 1; }
+          echo "Native Android project verified."
+      - name: Prepare Gradle
+        script: |
+          set -e
+          GRADLE_VERSION="9.3.1"
+          GRADLE_DIR="${HOME}/gradle-${GRADLE_VERSION}"
+          if [ ! -x "${GRADLE_DIR}/bin/gradle" ]; then
+            echo "Downloading Gradle ${GRADLE_VERSION}..."
+            curl -fL --retry 3 --connect-timeout 30 \
+              "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+              -o /tmp/gradle-${GRADLE_VERSION}-bin.zip
+            rm -rf "${GRADLE_DIR}"
+            mkdir -p "${HOME}"
+            unzip -q "/tmp/gradle-${GRADLE_VERSION}-bin.zip" -d "${HOME}"
+          fi
+          "${GRADLE_DIR}/bin/gradle" --version
       - name: Build Android APK
         script: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --stacktrace assembleDebug
+          set -e
+          GRADLE_VERSION="9.3.1"
+          "${HOME}/gradle-${GRADLE_VERSION}/bin/gradle" --no-daemon --stacktrace assembleDebug
     artifacts:
       - app/build/outputs/apk/debug/app-debug.apk
