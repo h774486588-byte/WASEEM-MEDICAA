@@ -4,7 +4,6 @@ import androidx.room.withTransaction
 import com.example.data.database.WaseemDatabase
 import com.example.data.models.*
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 data class BackupPayload(
@@ -43,7 +42,7 @@ class BackupManager(private val database: WaseemDatabase) {
 
     private val adapter = moshi.adapter(BackupPayload::class.java)
 
-    fun exportJson(): String {
+    suspend fun exportJson(): String {
         val dao = database.clinicDao()
         val payload = BackupPayload(
             patients = dao.getAllPatientsSnapshot(),
