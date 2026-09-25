@@ -144,7 +144,7 @@ fun InventoryScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = barcodeQuery,
-                            onValueChange = { barcodeQuery = it.filter(Char::isDigit) },
+                            onValueChange = { barcodeQuery = it.trim() },
                             label = { Text("رقم الباركود") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -182,7 +182,7 @@ fun InventoryScreen(
                                     startInventoryBarcodeScanner(
                                         context = context,
                                         onScanned = { value ->
-                                            barcodeQuery = value.filter(Char::isDigit)
+                                            barcodeQuery = value.trim()
                                             viewModel.findInventoryByBarcode(barcodeQuery) { item ->
                                                 barcodeResult = item
                                                 Toast.makeText(
@@ -292,9 +292,9 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("مستهلكات طبية") }
-    var quantityStr by remember { mutableStateOf("10") }
-    var minLimitStr by remember { mutableStateOf("3") }
-    var priceStr by remember { mutableStateOf("2500") }
+    var quantityStr by remember { mutableStateOf("") }
+    var minLimitStr by remember { mutableStateOf("") }
+    var priceStr by remember { mutableStateOf("") }
     var barcode by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -330,7 +330,7 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
                         onClick = {
                             startInventoryBarcodeScanner(
                                 context = context,
-                                onScanned = { value -> barcode = value.filter(Char::isDigit) },
+                                onScanned = { value -> barcode = value.trim() },
                                 onError = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
                             )
                         }
@@ -353,7 +353,7 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
                                     name = name,
                                     category = category,
                                     quantity = qty,
-                                    minLimit = minLimitStr.toIntOrNull() ?: 2,
+                                    minLimit = minLimitStr.toIntOrNull() ?: 0,
                                     unitPrice = price,
                                     barcode = barcode.trim()
                                 )
