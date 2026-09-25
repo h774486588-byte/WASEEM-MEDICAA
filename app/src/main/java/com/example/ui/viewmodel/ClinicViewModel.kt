@@ -134,6 +134,10 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
     val packages: StateFlow<List<PatientPackage>> = repository.allPackages
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val branchScopedPackages: StateFlow<List<PatientPackage>> = combine(packages, _activeBranch) { list, branch ->
+        if (branch == null) list else list.filter { it.branchId == branch.id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val sessions: StateFlow<List<ClinicSession>> = combine(repository.allSessions, _activeBranch) { sess, branch ->
         if (branch == null) sess else sess.filter { it.branchId == branch.id }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -248,13 +252,17 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
         list.sumOf { it.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val totalOutstandingBalances: StateFlow<Double> = patients.combine(receipts) { list, _ ->
-        list.sumOf { it.balanceDue }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    val totalOutstandingBalances: StateFlow<Double> = combine(patients, _activeBranch) { list, branch ->
+        if (branch == null) list else list.filter { it.branchId == branch.id }
+    }.map { list -> list.sumOf { it.balanceDue } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val suspendedPatients: StateFlow<List<Patient>> = patients.combine(searchQuery) { list, q ->
-        val filtered = if (q.isBlank()) list else list.filter {
-            it.name.contains(q, ignoreCase = true) || it.phone.contains(q) || it.fileNumber.contains(q, ignoreCase = true)
+    val suspendedPatients: StateFlow<List<Patient>> = combine(patients, searchQuery, _activeBranch) { list, q, branch ->
+        val branchScoped = if (branch == null) list else list.filter { it.branchId == branch.id }
+        val filtered = if (q.isBlank()) branchScoped else branchScoped.filter {
+            it.name.contains(q, ignoreCase = true) ||
+                it.phone.contains(q) ||
+                it.fileNumber.contains(q, ignoreCase = true)
         }
         filtered.filter { it.balanceDue > 0.0 }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -267,17 +275,17 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
         list.sumOf { it.balanceDue }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val activePackagesCount: StateFlow<Int> = packages.combine(sessions) { list, _ ->
-        list.count { it.status == "نشطة" && it.remainingSessions > 0 }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val activePackagesCount: StateFlow<Int> = branchScopedPackages
+        .map { list -> list.count { it.status == "نشطة" && it.remainingSessions > 0 } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val totalRemainingSessions: StateFlow<Int> = packages.combine(sessions) { list, _ ->
-        list.filter { it.status == "نشطة" }.sumOf { it.remainingSessions }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val totalRemainingSessions: StateFlow<Int> = branchScopedPackages
+        .map { list -> list.filter { it.status == "نشطة" }.sumOf { it.remainingSessions } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val packageAlerts: StateFlow<List<PatientPackage>> = packages.combine(patients) { pkgs, _ ->
-        pkgs.filter { it.status == "نشطة" && it.remainingSessions in 1..3 }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val packageAlerts: StateFlow<List<PatientPackage>> = branchScopedPackages
+        .map { pkgs -> pkgs.filter { it.status == "نشطة" && it.remainingSessions in 1..3 } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Trial & License Calculations ---
     val trialDaysRemaining: StateFlow<Int> = license.combine(settings) { lic, _ ->
