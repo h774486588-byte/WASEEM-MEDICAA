@@ -213,9 +213,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
             dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $message"))
             return Result.success(message)
         }
+    }
 
-        }
-        suspend fun createSession(patientId:Long,doctorId:Long?,therapistId:Long?,departmentId:Long?,serviceId:Long?,packageId:Long?=null,date:String,time:String,status:String="مجدولة",notes:String="",branchId:Long=1):Result<Long>{
+    suspend fun createSession(patientId:Long,doctorId:Long?,therapistId:Long?,departmentId:Long?,serviceId:Long?,packageId:Long?=null,date:String,time:String,status:String="مجدولة",notes:String="",branchId:Long=1):Result<Long>{
         val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
         val sessionNum="SES-${System.currentTimeMillis()}"
         val id=dao.insertSession(ClinicSession(sessionNumber=sessionNum,patientId=patientId,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,packageId=packageId,date=date,time=time,status=status,notes=notes.trim(),branchId=branchId))
@@ -236,9 +236,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
             if(generateSessions)dao.insertSessions((1..totalSessions).map{idx->ClinicSession(sessionNumber="PKG-$id-$idx",patientId=patientId,packageId=id,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,date=startDate,time="10:00 ص",status="مجدولة",notes="جلسة رقم $idx من إجمالي $totalSessions في باقة $packageName",branchId=branchId)})
             dao.updatePatient(patient.copy(balanceDue=patient.balanceDue+price)); dao.insertAuditLog(AuditLog(user="الاستقبال",action="إنشاء باقة جديدة",details="تم إنشاء $packageName للمريض ${patient.name} بقيمة $price ر.ي بعدد $totalSessions جلسات - فرع $branchId")); return Result.success(id)
         }
+    }
 
-        }
-        suspend fun createReceiptVoucher(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Long>{
+    suspend fun createReceiptVoucher(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Long>{
         return inTransaction {
 
             if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
@@ -254,9 +254,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
             dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام مبلغ: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
             dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند قبض",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(id)
         }
+    }
 
-        }
-        suspend fun createReceiptVoucherFull(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Pair<ReceiptVoucher,Patient>>{
+    suspend fun createReceiptVoucherFull(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Pair<ReceiptVoucher,Patient>>{
         return inTransaction {
 
             if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
@@ -274,9 +274,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
             dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام دفعة من الفاتورة: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند قبض رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالمبلغ المسدد: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
             dao.insertAuditLog(AuditLog(user="المحاسب",action="تسليم وسداد فاتورة",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي (متبقي: $remainingBalance) - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(Pair(createdReceipt,updatedPatient))
         }
+    }
 
-        }
-        suspend fun createExpenseVoucher(beneficiaryType:String,beneficiaryName:String,amount:Double,paymentMethod:String,category:String,statement:String,branchId:Long=1):Result<Long>{
+    suspend fun createExpenseVoucher(beneficiaryType:String,beneficiaryName:String,amount:Double,paymentMethod:String,category:String,statement:String,branchId:Long=1):Result<Long>{
         if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر")); if(beneficiaryName.isBlank())return Result.failure(IllegalArgumentException("اسم المستفيد مطلوب")); val voucherNumber="PV-${System.currentTimeMillis()}"; val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date()); val id=dao.insertExpense(ExpenseVoucher(voucherNumber=voucherNumber,date=today,beneficiaryType=beneficiaryType,beneficiaryName=beneficiaryName.trim(),amount=amount,paymentMethod=paymentMethod,category=category.trim(),statement=statement.trim(),branchId=branchId)); dao.insertNotification(AppNotification(title="سند صرف مسجل",message="تم تسجيل سند صرف رقم $voucherNumber للمستفيد $beneficiaryName بمبلغ $amount ر.ي.",type="صرف",relatedId=id)); dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند صرف",details="سند رقم $voucherNumber - المستفيد: $beneficiaryName - مبلغ: $amount ر.ي - بيان: $statement")); return Result.success(id)
     }
 
