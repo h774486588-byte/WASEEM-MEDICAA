@@ -162,30 +162,48 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
             UniversalSearchResults()
         } else {
             val q = query.trim().lowercase()
-            val rcptList = receipts.value
-            val srvList = services.value
             UniversalSearchResults(
                 matchingPatients = ptList.filter {
-                    it.name.lowercase().contains(q) || it.phone.contains(q) || it.fileNumber.lowercase().contains(q) || it.diagnosis.lowercase().contains(q)
+                    it.name.lowercase().contains(q) ||
+                        it.phone.contains(q) ||
+                        it.fileNumber.lowercase().contains(q) ||
+                        it.diagnosis.lowercase().contains(q)
                 }.take(5),
                 matchingAppointments = apptList.filter {
-                    it.appointmentNumber.lowercase().contains(q) || it.date.contains(q) || it.notes.lowercase().contains(q)
+                    it.appointmentNumber.lowercase().contains(q) ||
+                        it.date.contains(q) ||
+                        it.notes.lowercase().contains(q)
                 }.take(5),
                 matchingSessions = sessList.filter {
-                    it.sessionNumber.lowercase().contains(q) || it.date.contains(q) || it.notes.lowercase().contains(q)
+                    it.sessionNumber.lowercase().contains(q) ||
+                        it.date.contains(q) ||
+                        it.notes.lowercase().contains(q)
                 }.take(5),
                 matchingDoctors = docList.filter {
-                    it.name.lowercase().contains(q) || it.specialization.lowercase().contains(q) || it.phone.contains(q)
-                }.take(5),
-                matchingServices = srvList.filter {
-                    it.name.lowercase().contains(q)
-                }.take(5),
-                matchingReceipts = rcptList.filter {
-                    it.voucherNumber.lowercase().contains(q) || it.statement.lowercase().contains(q)
+                    it.name.lowercase().contains(q) ||
+                        it.specialization.lowercase().contains(q) ||
+                        it.phone.contains(q)
                 }.take(5)
             )
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UniversalSearchResults())
+    }
+    .combine(services) { results, srvList ->
+        val q = searchQuery.value.trim().lowercase()
+        if (q.length < 2) results
+        else results.copy(
+            matchingServices = srvList.filter { it.name.lowercase().contains(q) }.take(5)
+        )
+    }
+    .combine(receipts) { results, rcptList ->
+        val q = searchQuery.value.trim().lowercase()
+        if (q.length < 2) results
+        else results.copy(
+            matchingReceipts = rcptList.filter {
+                it.voucherNumber.lowercase().contains(q) || it.statement.lowercase().contains(q)
+            }.take(5)
+        )
+    }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UniversalSearchResults())
 
     val employees: StateFlow<List<Employee>> = repository.allEmployees
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
