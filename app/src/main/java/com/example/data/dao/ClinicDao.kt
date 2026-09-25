@@ -99,6 +99,7 @@ interface ClinicDao {
     @Query("DELETE FROM salary_deductions WHERE id = :id") suspend fun deleteDeduction(id: Long)
 
     @Query("SELECT * FROM inventory ORDER BY name ASC") fun getAllInventory(): Flow<List<InventoryItem>>
+    @Query("SELECT * FROM inventory WHERE barcode = :barcode LIMIT 1") suspend fun getInventoryByBarcode(barcode: String): InventoryItem?
     @Query("SELECT * FROM inventory ORDER BY name ASC") suspend fun getAllInventorySnapshot(): List<InventoryItem>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertInventoryItem(item: InventoryItem): Long
     @Update suspend fun updateInventoryItem(item: InventoryItem)
