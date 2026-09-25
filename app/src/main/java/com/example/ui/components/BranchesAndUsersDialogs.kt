@@ -585,7 +585,7 @@ fun ManageUsersDialog(
     // User Form fields
     var fullName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("1234") }
+    var password by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf("RECEPTIONIST") }
     var selectedBranchId by remember { mutableStateOf<Long?>(1) }
 
@@ -627,7 +627,7 @@ fun ManageUsersDialog(
                             onClick = {
                                 fullName = ""
                                 username = ""
-                                password = "1234"
+                                password = ""
                                 selectedRole = "RECEPTIONIST"
                                 permPatients = true
                                 permAppointments = true
@@ -744,6 +744,7 @@ fun ManageUsersDialog(
                                 onValueChange = { password = it },
                                 label = { Text("كلمة المرور") },
                                 singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(10.dp))
