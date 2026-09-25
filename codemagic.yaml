@@ -16,22 +16,21 @@ workflows:
       - name: Prepare Gradle
         script: |
           set -e
-          GRADLE_VERSION="9.3.1"
+          GRADLE_VERSION="8.11.1"
           GRADLE_DIR="${HOME}/gradle-${GRADLE_VERSION}"
           if [ ! -x "${GRADLE_DIR}/bin/gradle" ]; then
             echo "Downloading Gradle ${GRADLE_VERSION}..."
             curl -fL --retry 3 --connect-timeout 30 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-              -o /tmp/gradle-${GRADLE_VERSION}-bin.zip
+              -o "/tmp/gradle-${GRADLE_VERSION}-bin.zip"
             rm -rf "${GRADLE_DIR}"
-            mkdir -p "${HOME}"
             unzip -q "/tmp/gradle-${GRADLE_VERSION}-bin.zip" -d "${HOME}"
           fi
           "${GRADLE_DIR}/bin/gradle" --version
       - name: Build Android APK
         script: |
           set -e
-          GRADLE_VERSION="9.3.1"
+          GRADLE_VERSION="8.11.1"
           "${HOME}/gradle-${GRADLE_VERSION}/bin/gradle" --no-daemon --stacktrace assembleDebug
     artifacts:
       - app/build/outputs/apk/debug/app-debug.apk
