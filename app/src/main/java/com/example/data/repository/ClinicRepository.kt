@@ -55,7 +55,7 @@ class ClinicRepository(private val dao: ClinicDao) {
     val licenseFlow: Flow<AppLicense?> = dao.getLicense()
     val settingsFlow: Flow<CenterSettings?> = dao.getSettings()
 
-    fun searchPatients(query: String): Flow<List<Patient>> = dao.searchPatients(query)
+    fun searchPatients(query: String): Flow<List<Patient>> = dao.searchPatients(query.trim())
     fun getAppointmentsByDate(date: String): Flow<List<Appointment>> = dao.getAppointmentsByDate(date)
     fun getSessionsByDate(date: String): Flow<List<ClinicSession>> = dao.getSessionsByDate(date)
     fun getPackagesByPatient(patientId: Long): Flow<List<PatientPackage>> = dao.getPackagesByPatient(patientId)
@@ -97,27 +97,41 @@ class ClinicRepository(private val dao: ClinicDao) {
         dao.insertAuditLog(AuditLog(user="الاستقبال",action="حجز موعد",details="حجز موعد رقم $apptNumber للمريض ${patient.name} بتوقيت $date $timeSlot"))
         return Result.success(id)
     }
-    suspend fun updateAppointmentStatus(appointmentId: Long,newStatus: String){ /* reserved for status workflow */ }
+
+    suspend fun updateAppointmentStatus(appointmentId: Long,newStatus: String): Result<Unit> {
+        val allowedStatuses = setOf("محجوز", "حضر", "لم يحضر", "أُلغي", "مكتمل")
+        if (newStatus !in allowedStatuses) return Result.failure(IllegalArgumentException("حالة الموعد غير صالحة"))
+        val appointment = dao.getAllAppointmentsSnapshot().firstOrNull { it.id == appointmentId }
+            ?: return Result.failure(IllegalArgumentException("الموعد غير موجود"))
+        if (appointment.status == newStatus) return Result.success(Unit)
+        dao.updateAppointment(appointment.copy(status = newStatus))
+        dao.insertAuditLog(AuditLog(user="الاستقبال",action="تحديث حالة موعد",details="الموعد ${appointment.appointmentNumber}: ${appointment.status} ← $newStatus"))
+        return Result.success(Unit)
+    }
 
     suspend fun attendSession(sessionId: Long): Result<String> {
         val session=dao.getSessionById(sessionId) ?: return Result.failure(IllegalArgumentException("الجلسة غير موجودة"))
         if(session.status=="حضر"||session.isDeductedFromPackage)return Result.failure(IllegalStateException("تم تسجيل الحضور مسبقاً لهذه الجلسة ولن يتم الخصم مرة أخرى."))
         val patient=dao.getPatientById(session.patientId) ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
-        val now=System.currentTimeMillis(); dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=true,attendedAt=now))
-        var deductionMessage="تم تسجيل حضور الجلسة بنجاح."
+        val now=System.currentTimeMillis()
         val pkg=session.packageId?.let{dao.getPackageById(it)}?:dao.getActivePackageForPatient(patient.id)
         if(pkg!=null&&pkg.remainingSessions>0){
             val newUsed=pkg.usedSessions+1; val newRemaining=pkg.remainingSessions-1
+            dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=true,attendedAt=now))
             dao.updatePackage(pkg.copy(usedSessions=newUsed,remainingSessions=newRemaining,status=if(newRemaining==0)"مكتملة" else "نشطة"))
             dao.insertPackageSession(PackageSession(packageId=pkg.id,patientId=patient.id,sessionId=session.id,deductedAt=now,reason="حضور جلسة علاج طبيعي (${session.sessionNumber})",sessionsDeducted=1,remainingAfter=newRemaining))
             dao.insertNotification(AppNotification(title="خصم جلسة من الباقة",message="تم تسجيل حضور المريض ${patient.name}. تم خصم جلسة واحدة. المتبقي: $newRemaining جلسات.",type="خصم باقة",relatedId=session.id))
             dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم تسجيل حضوركم في جلسة العلاج الطبيعي اليوم.\nتم خصم جلسة واحدة من الباقة.\nالجلسات المستخدمة: $newUsed\nالجلسات المتبقية: $newRemaining\nالباقة: ${pkg.packageName}\n\nنتمنى لكم الشفاء والعافية.",templateType="SESSION_DEDUCTION"))
             if(newRemaining in 1..3)dao.insertNotification(AppNotification(title=if(newRemaining==1)"تنبيه مهم: جلسة أخيرة" else "تنبيه قرب انتهاء الباقة",message="تبقى للمريض ${patient.name} $newRemaining جلسات فقط في باقته.",type="تنبيه باقة",relatedId=pkg.id))
             if(newRemaining==0)dao.insertNotification(AppNotification(title="انتهاء الباقة",message="انتهت جميع جلسات باقة المريض ${patient.name}. يرجى التجديد لمواصلة العلاج.",type="تنبيه باقة",relatedId=pkg.id))
-            deductionMessage="تم تسجيل الحضور وخصم جلسة من الباقة. المتبقي: $newRemaining جلسات."
+            val deductionMessage="تم تسجيل الحضور وخصم جلسة من الباقة. المتبقي: $newRemaining جلسات."
+            dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $deductionMessage"))
+            return Result.success(deductionMessage)
         }
-        dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $deductionMessage"))
-        return Result.success(deductionMessage)
+        dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=false,attendedAt=now))
+        val message="تم تسجيل حضور الجلسة بنجاح. لا توجد باقة نشطة للخصم."
+        dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $message"))
+        return Result.success(message)
     }
 
     suspend fun createSession(patientId:Long,doctorId:Long?,therapistId:Long?,departmentId:Long?,serviceId:Long?,packageId:Long?=null,date:String,time:String,status:String="مجدولة",notes:String="",branchId:Long=1):Result<Long>{
