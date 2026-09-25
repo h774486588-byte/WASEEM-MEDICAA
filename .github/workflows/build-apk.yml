@@ -43,11 +43,15 @@ jobs:
           test -f app/build.gradle.kts
           test -d app/src/main
 
+      - name: Verify AndroidX configuration
+        shell: bash
+        run: grep -qx "android.useAndroidX=true" gradle.properties
+
       - name: Run unit tests
-        run: gradle test --stacktrace --no-daemon
+        run: gradle test --stacktrace --no-daemon --no-configuration-cache
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+        run: gradle :app:assembleDebug --stacktrace --no-daemon --no-configuration-cache
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
