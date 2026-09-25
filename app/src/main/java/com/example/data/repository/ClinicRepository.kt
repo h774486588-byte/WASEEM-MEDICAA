@@ -24,11 +24,66 @@ import com.example.data.models.PatientPackage
 import com.example.data.models.ReceiptVoucher
 import com.example.data.models.SalaryDeduction
 import com.example.data.models.Therapist
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
+
+private object PasswordHasher {
+    private const val PREFIX = "PBKDF2_SHA256:"
+    private const val ITERATIONS = 120_000
+    private const val SALT_BYTES = 16
+    private const val KEY_LENGTH = 256
+
+    fun isHashed(value: String): Boolean = value.startsWith(PREFIX)
+
+    fun ensureHashed(value: String): String = if (isHashed(value)) value else hash(value)
+
+    fun hash(password: String): String {
+        val salt = ByteArray(SALT_BYTES)
+        SecureRandom().nextBytes(salt)
+        val derived = derive(password, salt, ITERATIONS)
+        return PREFIX + ITERATIONS + ":" + toHex(salt) + ":" + toHex(derived)
+    }
+
+    fun matches(password: String, stored: String): Boolean {
+        if (!isHashed(stored)) return stored == password
+        val parts = stored.split(":")
+        if (parts.size != 4) return false
+        val iterations = parts[1].toIntOrNull() ?: return false
+        val salt = fromHex(parts[2]) ?: return false
+        val expected = fromHex(parts[3]) ?: return false
+        val actual = derive(password, salt, iterations)
+        return MessageDigest.isEqual(actual, expected)
+    }
+
+    private fun derive(password: String, salt: ByteArray, iterations: Int): ByteArray {
+        val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH)
+        return try {
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    private fun toHex(bytes: ByteArray): String = buildString(bytes.size * 2) {
+        bytes.forEach { b -> append("%02x".format(b)) }
+    }
+
+    private fun fromHex(value: String): ByteArray? {
+        if (value.length % 2 != 0) return null
+        return runCatching {
+            ByteArray(value.length / 2) { i ->
+                value.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+            }
+        }.getOrNull()
+    }
+}
 
 class ClinicRepository(private val dao: ClinicDao) {
     val allBranches: Flow<List<Branch>> = dao.getAllBranches()
@@ -212,15 +267,45 @@ class ClinicRepository(private val dao: ClinicDao) {
     suspend fun deleteBranch(id:Long){dao.deleteBranch(id);dao.insertAuditLog(AuditLog(user="المدير العام",action="حذف فرع",details="تم حذف الفرع رقم $id"))}
 
     suspend fun authenticate(username:String,password:String):AppUser?{
-        val u=username.trim(); val p=password.trim(); var user=dao.authenticate(u,p)
-        if(user==null)user=dao.getAllUsersDirect().firstOrNull{it.username.equals(u,true)&&it.passwordHash==p}
-        if(user!=null)dao.insertAuditLog(AuditLog(user=user.fullName,action="تسجيل دخول ناجح",details="تم تسجيل الدخول باسم: ${user.username} (${user.role})"))
-        return user
+        val u=username.trim()
+        val p=password.trim()
+        if (u.isBlank() || p.isBlank()) return null
+        val user=dao.getUserByUsername(u) ?: return null
+
+        if (!PasswordHasher.matches(p, user.passwordHash)) return null
+
+        // Transparently migrate legacy plaintext credentials to a salted PBKDF2 hash.
+        if (!PasswordHasher.isHashed(user.passwordHash)) {
+            dao.updateUserPassword(user.id, PasswordHasher.hash(p))
+        }
+
+        dao.insertAuditLog(AuditLog(user=user.fullName,action="تسجيل دخول ناجح",details="تم تسجيل الدخول باسم: ${user.username} (${user.role})"))
+        return if (PasswordHasher.isHashed(user.passwordHash)) user else user.copy(passwordHash=PasswordHasher.hash(p))
     }
     suspend fun getUserByUsername(username:String):AppUser?=dao.getUserByUsername(username.trim())
-    suspend fun addUser(user:AppUser):Long{val id=dao.insertUser(user);dao.insertAuditLog(AuditLog(user="المدير العام",action="إضافة مستخدم جديد",details="تم إنشاء حساب المستخدم: ${user.fullName} (${user.username})"));return id}
-    suspend fun updateUser(user:AppUser){dao.updateUser(user);dao.insertAuditLog(AuditLog(user="المدير العام",action="تحديث بيانات مستخدم",details="تم تحديث صلاحيات/بيانات: ${user.fullName}"))}
-    suspend fun updateUserPassword(userId:Long,newPassword:String,performerName:String="المدير العام"){dao.updateUserPassword(userId,newPassword.trim());dao.insertAuditLog(AuditLog(user=performerName,action="تغيير / استعادة كلمة المرور",details="تم إعادة تعيين كلمة المرور للمستخدم رقم $userId بنجاح"))}
+
+    suspend fun verifyUserPassword(userId:Long,password:String):Boolean{
+        val user=dao.getUserById(userId) ?: return false
+        return PasswordHasher.matches(password.trim(), user.passwordHash)
+    }
+
+    suspend fun addUser(user:AppUser):Long{
+        val normalized = user.copy(passwordHash = PasswordHasher.ensureHashed(user.passwordHash))
+        val id=dao.insertUser(normalized)
+        dao.insertAuditLog(AuditLog(user="المدير العام",action="إضافة مستخدم جديد",details="تم إنشاء حساب المستخدم: ${user.fullName} (${user.username})"))
+        return id
+    }
+    suspend fun updateUser(user:AppUser){
+        val normalized = user.copy(passwordHash = PasswordHasher.ensureHashed(user.passwordHash))
+        dao.updateUser(normalized)
+        dao.insertAuditLog(AuditLog(user="المدير العام",action="تحديث بيانات مستخدم",details="تم تحديث صلاحيات/بيانات: ${user.fullName}"))
+    }
+    suspend fun updateUserPassword(userId:Long,newPassword:String,performerName:String="المدير العام"){
+        val p=newPassword.trim()
+        if (p.length < 4) throw IllegalArgumentException("كلمة المرور يجب ألا تقل عن 4 أحرف")
+        dao.updateUserPassword(userId,PasswordHasher.hash(p))
+        dao.insertAuditLog(AuditLog(user=performerName,action="تغيير / استعادة كلمة المرور",details="تم إعادة تعيين كلمة المرور للمستخدم رقم $userId بنجاح"))
+    }
     suspend fun deleteUser(id:Long){dao.deleteUser(id);dao.insertAuditLog(AuditLog(user="المدير العام",action="حذف مستخدم",details="تم حذف حساب المستخدم رقم $id"))}
     suspend fun resetOperationalData(performer:String="م. وسيم الفرح (المالك)"){dao.clearPatients();dao.clearAppointments();dao.clearSessions();dao.clearPackages();dao.clearPackageSessions();dao.clearReceipts();dao.clearExpenses();dao.clearDeductions();dao.clearAllNotifications();dao.insertNotification(AppNotification(title="تصفير وتهيئة النظام",message="تم تصفير البيانات التشغيلية للنظام بنجاح مع الاحتفاظ بكافة الفروع والمستخدمين والصلاحيات والترخيص.",type="نظام"));dao.insertAuditLog(AuditLog(user=performer,action="تصفير النظام الشامل",details="تم تصفير البيانات التشغيلية بنجاح وبدء تشغيل دورة العمل الجديدة"))}
 }
