@@ -158,7 +158,7 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
     // --- Universal Live Search Results ---
     val universalSearchResults: StateFlow<UniversalSearchResults> = combine(
         searchQuery,
-        patients,
+        filteredPatients,
         appointments,
         sessions,
         doctors
