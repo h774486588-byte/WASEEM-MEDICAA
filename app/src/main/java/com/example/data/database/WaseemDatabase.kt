@@ -5,7 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.dao.ClinicDao
 import com.example.data.models.AppLicense
 import com.example.data.models.AppMessage
@@ -49,14 +48,10 @@ private object BootstrapPasswordHasher {
         java.security.SecureRandom().nextBytes(salt)
         val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
         return try {
-            val derived = javax.crypto.SecretKeyFactory
-                .getInstance("PBKDF2WithHmacSHA1")
-                .generateSecret(spec)
-                .encoded
+            val derived = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
+                .generateSecret(spec).encoded
             PREFIX + ITERATIONS + ":" + salt.toHexString() + ":" + derived.toHexString()
-        } finally {
-            spec.clearPassword()
-        }
+        } finally { spec.clearPassword() }
     }
 
     private fun ByteArray.toHexString(): String = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
@@ -64,35 +59,17 @@ private object BootstrapPasswordHasher {
 
 @Database(
     entities = [
-        Patient::class,
-        Doctor::class,
-        Therapist::class,
-        Department::class,
-        MedicalService::class,
-        DiagnosisItem::class,
-        Appointment::class,
-        PatientPackage::class,
-        PackageSession::class,
-        ClinicSession::class,
-        ReceiptVoucher::class,
-        ExpenseVoucher::class,
-        Employee::class,
-        SalaryDeduction::class,
-        InventoryItem::class,
-        AppNotification::class,
-        AppMessage::class,
-        MessageTemplate::class,
-        AuditLog::class,
-        AppLicense::class,
-        CenterSettings::class,
-        Branch::class,
-        AppUser::class
+        Patient::class, Doctor::class, Therapist::class, Department::class, MedicalService::class,
+        DiagnosisItem::class, Appointment::class, PatientPackage::class, PackageSession::class,
+        ClinicSession::class, ReceiptVoucher::class, ExpenseVoucher::class, Employee::class,
+        SalaryDeduction::class, InventoryItem::class, AppNotification::class, AppMessage::class,
+        MessageTemplate::class, AuditLog::class, AppLicense::class, CenterSettings::class,
+        Branch::class, AppUser::class
     ],
     version = 4,
     exportSchema = false
 )
 abstract class WaseemDatabase : RoomDatabase() {
-
     abstract fun clinicDao(): ClinicDao
 
     companion object {
@@ -102,229 +79,52 @@ abstract class WaseemDatabase : RoomDatabase() {
             }
         }
 
-        @Volatile
-        private var INSTANCE: WaseemDatabase? = null
+        @Volatile private var INSTANCE: WaseemDatabase? = null
 
         fun getDatabase(context: Context, scope: CoroutineScope): WaseemDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     WaseemDatabase::class.java,
                     "waseem_medical_pro.db"
                 )
                     .addMigrations(MIGRATION_3_4)
+                    // Allows an installation that contains a newer development schema to open
+                    // after installing an older stable build instead of crashing at startup.
+                    // Normal forward migrations are still preferred and existing data is retained.
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
-                INSTANCE = instance
-
-                // Initialize only essential operational configuration once the database is ready.
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        ensureEssentialData(instance.clinicDao())
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                    .also { instance ->
+                        INSTANCE = instance
+                        scope.launch(Dispatchers.IO) {
+                            runCatching { ensureEssentialData(instance.clinicDao()) }
+                                .onFailure { it.printStackTrace() }
+                        }
                     }
-                }
-
-                instance
             }
         }
 
         suspend fun ensureEssentialData(dao: ClinicDao) {
             val now = System.currentTimeMillis()
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-            val todayStr = dateFormat.format(Date(now))
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date(now))
 
-            // 1. Ensure Branches exist
             if (dao.getBranchesCountDirect() == 0) {
-                dao.insertBranch(
-                    Branch(
-                        id = 1,
-                        name = "الفرع الرئيسي - صنعاء",
-                        city = "صنعاء",
-                        address = "شارع الستين الغربي - بجوار المستشفى الاستشاري",
-                        phone = "772357240",
-                        isMainBranch = true
-                    )
-                )
-                dao.insertBranch(
-                    Branch(
-                        id = 2,
-                        name = "فرع صنعاء - حدة",
-                        city = "صنعاء",
-                        address = "شارع حدة العام - جولة الرويشان",
-                        phone = "772357240"
-                    )
-                )
-                dao.insertBranch(
-                    Branch(
-                        id = 3,
-                        name = "فرع إب - الدائري",
-                        city = "إب",
-                        address = "الشارع الدائري الغربي",
-                        phone = "772357240"
-                    )
-                )
-                dao.insertBranch(
-                    Branch(
-                        id = 4,
-                        name = "فرع تعز - شارع جمال",
-                        city = "تعز",
-                        address = "شارع جمال عبد الناصر",
-                        phone = "772357240"
-                    )
-                )
+                dao.insertBranch(Branch(id=1,name="الفرع الرئيسي - صنعاء",city="صنعاء",address="شارع الستين الغربي - بجوار المستشفى الاستشاري",phone="772357240",isMainBranch=true))
+                dao.insertBranch(Branch(id=2,name="فرع صنعاء - حدة",city="صنعاء",address="شارع حدة العام - جولة الرويشان",phone="772357240"))
+                dao.insertBranch(Branch(id=3,name="فرع إب - الدائري",city="إب",address="الشارع الدائري الغربي",phone="772357240"))
+                dao.insertBranch(Branch(id=4,name="فرع تعز - شارع جمال",city="تعز",address="شارع جمال عبد الناصر",phone="772357240"))
             }
 
-            // 2. Ensure Users exist (admin, Waseem, mohammed, ahmed)
-            if (dao.getUserByUsername("admin") == null) {
-                dao.insertUser(
-                    AppUser(
-                        username = "admin",
-                        passwordHash = BootstrapPasswordHasher.hash("admin"),
-                        fullName = "مدير المركز (إدارة عامة)",
-                        role = "ADMIN",
-                        branchId = 1,
-                        phone = "772357240",
-                        isSystemOwner = false,
-                        permPatients = true,
-                        permAppointments = true,
-                        permSessions = true,
-                        permDoctors = true,
-                        permDepartments = true,
-                        permFinancial = true,
-                        permPayroll = true,
-                        permInventory = true,
-                        permReports = true,
-                        permSettings = true,
-                        permUsers = true,
-                        permBackup = true,
-                        permLicense = true
-                    )
-                )
-            }
+            if (dao.getUserByUsername("admin") == null) dao.insertUser(AppUser(username="admin",passwordHash=BootstrapPasswordHasher.hash("admin"),fullName="مدير المركز (إدارة عامة)",role="ADMIN",branchId=1,phone="772357240",isSystemOwner=false,permPatients=true,permAppointments=true,permSessions=true,permDoctors=true,permDepartments=true,permFinancial=true,permPayroll=true,permInventory=true,permReports=true,permSettings=true,permUsers=true,permBackup=true,permLicense=true))
+            if (dao.getUserByUsername("Waseem") == null) dao.insertUser(AppUser(username="Waseem",passwordHash=BootstrapPasswordHasher.hash("W772357240"),fullName="م. وسيم الفرح (مالك ومطور النظام)",role="SUPER_ADMIN",branchId=null,phone="772357240",isSystemOwner=true,permPatients=true,permAppointments=true,permSessions=true,permDoctors=true,permDepartments=true,permFinancial=true,permPayroll=true,permInventory=true,permReports=true,permSettings=true,permUsers=true,permBackup=true,permLicense=true))
+            if (dao.getUserByUsername("mohammed") == null) dao.insertUser(AppUser(username="mohammed",passwordHash=BootstrapPasswordHasher.hash("1234"),fullName="محمد أحمد — استقبال",role="RECEPTIONIST",branchId=1,phone="771122334",isSystemOwner=false,permPatients=true,permAppointments=true,permSessions=true,permDoctors=true,permDepartments=true,permFinancial=false,permPayroll=false,permInventory=false,permReports=false,permSettings=false,permUsers=false,permBackup=false,permLicense=false))
+            if (dao.getUserByUsername("ahmed") == null) dao.insertUser(AppUser(username="ahmed",passwordHash=BootstrapPasswordHasher.hash("1234"),fullName="أحمد علي — محاسب",role="ACCOUNTANT",branchId=1,phone="775566778",isSystemOwner=false,permPatients=true,permAppointments=false,permSessions=false,permDoctors=false,permDepartments=false,permFinancial=true,permPayroll=true,permInventory=true,permReports=true,permSettings=false,permUsers=false,permBackup=false,permLicense=false))
 
-            if (dao.getUserByUsername("Waseem") == null) {
-                dao.insertUser(
-                    AppUser(
-                        username = "Waseem",
-                        passwordHash = BootstrapPasswordHasher.hash("W772357240"),
-                        fullName = "م. وسيم الفرح (مالك ومطور النظام)",
-                        role = "SUPER_ADMIN",
-                        branchId = null,
-                        phone = "772357240",
-                        isSystemOwner = true,
-                        permPatients = true,
-                        permAppointments = true,
-                        permSessions = true,
-                        permDoctors = true,
-                        permDepartments = true,
-                        permFinancial = true,
-                        permPayroll = true,
-                        permInventory = true,
-                        permReports = true,
-                        permSettings = true,
-                        permUsers = true,
-                        permBackup = true,
-                        permLicense = true
-                    )
-                )
-            }
+            if (dao.getSettingsDirect() == null) dao.updateSettings(CenterSettings(id=1,centerName="مركز وسيم للعلاج الطبيعي والتأهيل",developerName="وسيم الفرح",developerPhone="772357240",address="اليمن - صنعاء - شارع الستين الغربي",phone="772357240",whatsapp="772357240",currency="ر.ي",autoSyncGoogleDrive=false,syncIntervalHours=6,isDarkMode=false,enableDoctorAlerts=true))
+            if (dao.getLicenseDirect() == null) dao.setLicense(AppLicense(id=1,customerName="مركز وسيم الطبي والتأهيلي",centerName="نظام وسيم الطبي PRO",licenseNumber="WMP-TRIAL-"+UUID.randomUUID().toString().take(8).uppercase(),startDate=now,endDate=now+30L*24L*60L*60L*1000L,licenseType="TRIAL",status="ACTIVE",installationId="INST-"+UUID.randomUUID().toString().take(12).uppercase()))
 
-            if (dao.getUserByUsername("mohammed") == null) {
-                dao.insertUser(
-                    AppUser(
-                        username = "mohammed",
-                        passwordHash = BootstrapPasswordHasher.hash("1234"),
-                        fullName = "محمد أحمد — استقبال",
-                        role = "RECEPTIONIST",
-                        branchId = 1,
-                        phone = "771122334",
-                        isSystemOwner = false,
-                        permPatients = true,
-                        permAppointments = true,
-                        permSessions = true,
-                        permDoctors = true,
-                        permDepartments = true,
-                        permFinancial = false,
-                        permPayroll = false,
-                        permInventory = false,
-                        permReports = false,
-                        permSettings = false,
-                        permUsers = false,
-                        permBackup = false,
-                        permLicense = false
-                    )
-                )
-            }
-
-            if (dao.getUserByUsername("ahmed") == null) {
-                dao.insertUser(
-                    AppUser(
-                        username = "ahmed",
-                        passwordHash = BootstrapPasswordHasher.hash("1234"),
-                        fullName = "أحمد علي — محاسب",
-                        role = "ACCOUNTANT",
-                        branchId = 1,
-                        phone = "775566778",
-                        isSystemOwner = false,
-                        permPatients = true,
-                        permAppointments = false,
-                        permSessions = false,
-                        permDoctors = false,
-                        permDepartments = false,
-                        permFinancial = true,
-                        permPayroll = true,
-                        permInventory = true,
-                        permReports = true,
-                        permSettings = false,
-                        permUsers = false,
-                        permBackup = false,
-                        permLicense = false
-                    )
-                )
-            }
-
-            // 3. Ensure Settings and License exist
-            if (dao.getSettingsDirect() == null) {
-                dao.updateSettings(
-                    CenterSettings(
-                        id = 1,
-                        centerName = "مركز وسيم للعلاج الطبيعي والتأهيل",
-                        developerName = "وسيم الفرح",
-                        developerPhone = "772357240",
-                        address = "اليمن - صنعاء - شارع الستين الغربي",
-                        phone = "772357240",
-                        whatsapp = "772357240",
-                        currency = "ر.ي",
-                        autoSyncGoogleDrive = false,
-                        syncIntervalHours = 6,
-                        isDarkMode = false,
-                        enableDoctorAlerts = true
-                    )
-                )
-            }
-
-            if (dao.getLicenseDirect() == null) {
-                val thirtyDaysMillis = 30L * 24L * 60L * 60L * 1000L
-                dao.setLicense(
-                    AppLicense(
-                        id = 1,
-                        customerName = "مركز وسيم الطبي والتأهيلي",
-                        centerName = "نظام وسيم الطبي PRO",
-                        licenseNumber = "WMP-TRIAL-" + UUID.randomUUID().toString().take(8).uppercase(),
-                        startDate = now,
-                        endDate = now + thirtyDaysMillis,
-                        licenseType = "TRIAL",
-                        status = "ACTIVE",
-                        installationId = "INST-" + UUID.randomUUID().toString().take(12).uppercase()
-                    )
-                )
-            }
-
-            // Do not create sample patients, appointments, financial records, or inventory automatically.
-            // Production data must be entered or restored explicitly by the center owner.
+            // Production data is never fabricated automatically.
+            @Suppress("UNUSED_VARIABLE") val unusedToday = todayStr
         }
-
-
     }
 }
