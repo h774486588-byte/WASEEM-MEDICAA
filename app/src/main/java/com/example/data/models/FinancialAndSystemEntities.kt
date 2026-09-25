@@ -158,7 +158,7 @@ data class Branch(
 data class AppUser(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val username: String, // "admin", "Waseem", "mohammed", "ahmed"
-    val passwordHash: String, // "admin", "W772357240", etc.
+    val passwordHash: String, // كلمة المرور مخزنة كـ hash مملّح
     val fullName: String,
     val role: String, // "SUPER_ADMIN", "ADMIN", "RECEPTIONIST", "ACCOUNTANT", "DOCTOR", "STAFF"
     val branchId: Long? = null, // null = all branches
