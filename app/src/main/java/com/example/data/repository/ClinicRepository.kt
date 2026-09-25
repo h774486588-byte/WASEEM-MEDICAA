@@ -190,9 +190,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     suspend fun attendSession(sessionId: Long): Result<String> {
         return inTransaction {
 
-            val session=dao.getSessionById(sessionId) ?: return Result.failure(IllegalArgumentException("الجلسة غير موجودة"))
-            if(session.status=="حضر"||session.isDeductedFromPackage)return Result.failure(IllegalStateException("تم تسجيل الحضور مسبقاً لهذه الجلسة ولن يتم الخصم مرة أخرى."))
-            val patient=dao.getPatientById(session.patientId) ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            val session=dao.getSessionById(sessionId) ?: return@inTransaction Result.failure(IllegalArgumentException("الجلسة غير موجودة"))
+            if(session.status=="حضر"||session.isDeductedFromPackage)return@inTransaction Result.failure(IllegalStateException("تم تسجيل الحضور مسبقاً لهذه الجلسة ولن يتم الخصم مرة أخرى."))
+            val patient=dao.getPatientById(session.patientId) ?: return@inTransaction Result.failure(IllegalArgumentException("المريض غير موجود"))
             val now=System.currentTimeMillis()
             val pkg=session.packageId?.let{dao.getPackageById(it)}?:dao.getActivePackageForPatient(patient.id)
             if(pkg!=null&&pkg.remainingSessions>0){
@@ -206,12 +206,12 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
                 if(newRemaining==0)dao.insertNotification(AppNotification(title="انتهاء الباقة",message="انتهت جميع جلسات باقة المريض ${patient.name}. يرجى التجديد لمواصلة العلاج.",type="تنبيه باقة",relatedId=pkg.id))
                 val deductionMessage="تم تسجيل الحضور وخصم جلسة من الباقة. المتبقي: $newRemaining جلسات."
                 dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $deductionMessage"))
-                return Result.success(deductionMessage)
+                return@inTransaction Result.success(deductionMessage)
             }
             dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=false,attendedAt=now))
             val message="تم تسجيل حضور الجلسة بنجاح. لا توجد باقة نشطة للخصم."
             dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $message"))
-            return Result.success(message)
+            return@inTransaction Result.success(message)
         }
     }
 
