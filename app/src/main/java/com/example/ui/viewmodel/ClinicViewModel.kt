@@ -551,11 +551,11 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
             res.fold(
                 onSuccess = { msg ->
                     // Fetch session and patient to send WhatsApp/SMS
-                    val session = repository.allSessions // Flow
-                    val currentSession = sessions.value.find { it.id == sessionId }
-                    val patient = patients.value.find { it.id == currentSession?.patientId }
+                    val currentSession = repository.getSessionById(sessionId)
+                    val patient = currentSession?.let { repository.getPatientById(it.patientId) }
                     if (patient != null && currentSession != null) {
-                        val pkg = packages.value.find { it.id == currentSession.packageId || it.patientId == patient.id }
+                        val pkg = currentSession.packageId?.let { repository.getPackageById(it) }
+                            ?: repository.getPatientById(patient.id)?.let { repository.getPackageById(it.id) }
                         val remaining = pkg?.remainingSessions ?: 0
                         val commMessage = "مرحبًا ${patient.name}\n\nتم تسجيل حضوركم في جلسة العلاج الطبيعي اليوم (جلسة رقم ${currentSession.sessionNumber}).\nالجلسات المتبقية في باقتكم: $remaining جلسة.\n\nنتمنى لكم دوام الصحة والعافية - مركز وسيم الطبي."
 
@@ -626,28 +626,8 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
             )
             res.fold(
                 onSuccess = { newId ->
-                    val newlyRegistered = patients.value.find { it.id == newId }
-                        ?: Patient(
-                            id = newId,
-                            fileNumber = "WM-" + (1000 + (System.currentTimeMillis() % 9000).toInt()),
-                            name = name,
-                            phone = phone,
-                            gender = gender,
-                            dateOfBirth = dateOfBirth,
-                            address = address,
-                            maritalStatus = maritalStatus,
-                            profession = profession,
-                            referralSource = referralSource,
-                            doctorId = doctorId,
-                            therapistId = therapistId,
-                            departmentId = departmentId,
-                            serviceId = serviceId,
-                            diagnosis = diagnosis,
-                            complaint = complaint,
-                            notes = notes,
-                            balanceDue = initialBalance,
-                            branchId = bId
-                        )
+                    val newlyRegistered = repository.getPatientById(newId)
+                        ?: return@fold onResult(false, null, "تم حفظ المريض لكن تعذر قراءة الملف الذي تم إنشاؤه")
 
                     if (context != null) {
                         val welcomeMsg = "أهلاً وسهلاً بكم ${newlyRegistered.name} في مركز وسيم الطبي والتأهيلي.\nتم فتح ملف طبي لكم برقم: ${newlyRegistered.fileNumber}.\nنحن سعداء بخدمتكم ونتمنى لكم موفور الصحة.\nللاستفسار: 772357240"
