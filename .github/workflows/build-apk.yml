@@ -18,7 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
       - name: Runner preflight
         run: |
           set -euxo pipefail
-          echo "Runner preflight with concurrency OK"
+          echo "Checkout preflight OK"
+          git --version
