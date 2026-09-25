@@ -42,6 +42,7 @@ interface ClinicDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertDiagnosis(diagnosis: DiagnosisItem): Long
 
     @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") fun getAllAppointments(): Flow<List<Appointment>>
+    @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") suspend fun getAllAppointmentsSnapshot(): List<Appointment>
     @Query("SELECT * FROM appointments WHERE date = :date ORDER BY timeSlot ASC") fun getAppointmentsByDate(date: String): Flow<List<Appointment>>
     @Query("SELECT * FROM appointments WHERE doctorId = :doctorId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkDoctorAppointmentConflict(doctorId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
     @Query("SELECT * FROM appointments WHERE therapistId = :therapistId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkTherapistAppointmentConflict(therapistId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
