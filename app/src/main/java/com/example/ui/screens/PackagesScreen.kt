@@ -286,17 +286,22 @@ fun AddPackageDialogModal(
     var selectedPatient by remember { mutableStateOf<Patient?>(null) }
     var patientDropdownExpanded by remember { mutableStateOf(false) }
 
+    val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH) }
     var packageName by remember { mutableStateOf("") }
     var priceStr by remember { mutableStateOf("") }
     var totalSessionsStr by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf(viewModel.todayDateStr) }
-    var endDate by remember { mutableStateOf("") }
+    var endDate by remember {
+        mutableStateOf(
+            Calendar.getInstance()
+                .apply { add(Calendar.DAY_OF_YEAR, 30) }
+                .time
+                .let(dateFormatter::format)
+        )
+    }
     var notes by remember { mutableStateOf("") }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
-    val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH) }
-    if (startDate.isBlank()) startDate = viewModel.todayDateStr
-    if (endDate.isBlank()) endDate = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 30) }.time.let(dateFormatter::format)
 
     fun formatPickerDate(millis: Long): String = dateFormatter.format(Date(millis))
     fun parseDateMillis(value: String): Long? = runCatching { dateFormatter.parse(value)?.time }.getOrNull()
