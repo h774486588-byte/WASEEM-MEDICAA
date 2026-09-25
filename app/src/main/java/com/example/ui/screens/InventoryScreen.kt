@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +60,34 @@ import com.example.ui.theme.MedicalBlue
 import com.example.ui.theme.MedicalRed
 import com.example.ui.theme.MedicalRedLight
 import com.example.ui.viewmodel.ClinicViewModel
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
+private fun startInventoryBarcodeScanner(
+    context: Context,
+    onScanned: (String) -> Unit,
+    onError: (String) -> Unit
+) {
+    val options = GmsBarcodeScannerOptions.Builder()
+        .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
+        .enableAutoZoom()
+        .build()
+
+    GmsBarcodeScanning.getClient(context, options)
+        .startScan()
+        .addOnSuccessListener { barcode ->
+            val value = barcode.rawValue?.trim().orEmpty()
+            if (value.isBlank()) onError("تمت قراءة الباركود لكن لم يتم العثور على قيمة صالحة")
+            else onScanned(value)
+        }
+        .addOnCanceledListener {
+            // User closed the scanner; no error is necessary.
+        }
+        .addOnFailureListener { error ->
+            onError("تعذر تشغيل قارئ الباركود: " + (error.localizedMessage ?: "خطأ غير معروف"))
+        }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryScreen(
@@ -114,19 +142,19 @@ fun InventoryScreen(
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = barcodeQuery,
+                            onValueChange = { barcodeQuery = it.filter(Char::isDigit) },
+                            label = { Text("رقم الباركود") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("inventory_barcode_search")
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = barcodeQuery,
-                                onValueChange = { barcodeQuery = it.filter(Char::isDigit) },
-                                label = { Text("رقم الباركود") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f).testTag("inventory_barcode_search")
-                            )
                             Button(
                                 onClick = {
                                     if (barcodeQuery.isBlank()) {
@@ -142,11 +170,36 @@ fun InventoryScreen(
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MedicalBlue)
+                                colors = ButtonDefaults.buttonColors(containerColor = MedicalBlue),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Default.Search, contentDescription = null)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("بحث")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    startInventoryBarcodeScanner(
+                                        context = context,
+                                        onScanned = { value ->
+                                            barcodeQuery = value.filter(Char::isDigit)
+                                            viewModel.findInventoryByBarcode(barcodeQuery) { item ->
+                                                barcodeResult = item
+                                                Toast.makeText(
+                                                    context,
+                                                    if (item == null) "لم يتم العثور على صنف بهذا الباركود" else "تم العثور على: ${item.name}",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        },
+                                        onError = { message ->
+                                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("مسح بالكاميرا")
                             }
                         }
                         barcodeResult?.let { found ->
@@ -260,14 +313,29 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it.filter { c -> c.isDigit() } }, label = { Text("سعر الوحدة (ر.ي)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = barcode,
-                    onValueChange = { barcode = it.filter(Char::isDigit) },
-                    label = { Text("الباركود (اختياري)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = barcode,
+                        onValueChange = { barcode = it.filter(Char::isDigit) },
+                        label = { Text("الباركود (اختياري)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            startInventoryBarcodeScanner(
+                                context = context,
+                                onScanned = { value -> barcode = value.filter(Char::isDigit) },
+                                onError = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
+                            )
+                        }
+                    ) { Text("مسح") }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     OutlinedButton(onClick = onDismiss) { Text("إلغاء") }
