@@ -38,8 +38,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1007,17 +1005,25 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
     }
 
     // --- Local Backup & Restore ---
-    fun exportBackupJson(): String {
-        val root = JSONObject()
-        root.put("app", "WaseemMedicalPro")
-        root.put("exportedAt", System.currentTimeMillis())
-        root.put("totalPatients", patients.value.size)
-        root.put("totalAppointments", appointments.value.size)
-        root.put("totalPackages", packages.value.size)
-        root.put("totalSessions", sessions.value.size)
-        root.put("totalReceipts", receipts.value.size)
-        root.put("totalExpenses", expenses.value.size)
-        return root.toString(2)
+    fun createBackup(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val json = repository.exportBackupJson()
+                onResult(true, json)
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "تعذر إنشاء النسخة الاحتياطية")
+            }
+        }
+    }
+
+    fun restoreBackupJson(json: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.restoreBackupJson(json)
+            result.fold(
+                onSuccess = { onResult(true, "تمت استعادة النسخة الاحتياطية بنجاح") },
+                onFailure = { onResult(false, it.message ?: "تعذر استعادة النسخة الاحتياطية") }
+            )
+        }
     }
 }
 
