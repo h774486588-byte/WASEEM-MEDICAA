@@ -30,6 +30,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -115,6 +116,9 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     private val backupManager: BackupManager?
         get() = database?.let { BackupManager(it) }
 
+    private suspend fun <T> inTransaction(block: suspend () -> T): T =
+        database?.withTransaction { block() } ?: block()
+
     suspend fun exportBackupJson(): String {
         return backupManager?.exportJson()
             ?: throw IllegalStateException("خدمة النسخ الاحتياطي غير مهيأة")
@@ -184,31 +188,34 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     }
 
     suspend fun attendSession(sessionId: Long): Result<String> {
-        val session=dao.getSessionById(sessionId) ?: return Result.failure(IllegalArgumentException("الجلسة غير موجودة"))
-        if(session.status=="حضر"||session.isDeductedFromPackage)return Result.failure(IllegalStateException("تم تسجيل الحضور مسبقاً لهذه الجلسة ولن يتم الخصم مرة أخرى."))
-        val patient=dao.getPatientById(session.patientId) ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
-        val now=System.currentTimeMillis()
-        val pkg=session.packageId?.let{dao.getPackageById(it)}?:dao.getActivePackageForPatient(patient.id)
-        if(pkg!=null&&pkg.remainingSessions>0){
-            val newUsed=pkg.usedSessions+1; val newRemaining=pkg.remainingSessions-1
-            dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=true,attendedAt=now))
-            dao.updatePackage(pkg.copy(usedSessions=newUsed,remainingSessions=newRemaining,status=if(newRemaining==0)"مكتملة" else "نشطة"))
-            dao.insertPackageSession(PackageSession(packageId=pkg.id,patientId=patient.id,sessionId=session.id,deductedAt=now,reason="حضور جلسة علاج طبيعي (${session.sessionNumber})",sessionsDeducted=1,remainingAfter=newRemaining))
-            dao.insertNotification(AppNotification(title="خصم جلسة من الباقة",message="تم تسجيل حضور المريض ${patient.name}. تم خصم جلسة واحدة. المتبقي: $newRemaining جلسات.",type="خصم باقة",relatedId=session.id))
-            dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم تسجيل حضوركم في جلسة العلاج الطبيعي اليوم.\nتم خصم جلسة واحدة من الباقة.\nالجلسات المستخدمة: $newUsed\nالجلسات المتبقية: $newRemaining\nالباقة: ${pkg.packageName}\n\nنتمنى لكم الشفاء والعافية.",templateType="SESSION_DEDUCTION"))
-            if(newRemaining in 1..3)dao.insertNotification(AppNotification(title=if(newRemaining==1)"تنبيه مهم: جلسة أخيرة" else "تنبيه قرب انتهاء الباقة",message="تبقى للمريض ${patient.name} $newRemaining جلسات فقط في باقته.",type="تنبيه باقة",relatedId=pkg.id))
-            if(newRemaining==0)dao.insertNotification(AppNotification(title="انتهاء الباقة",message="انتهت جميع جلسات باقة المريض ${patient.name}. يرجى التجديد لمواصلة العلاج.",type="تنبيه باقة",relatedId=pkg.id))
-            val deductionMessage="تم تسجيل الحضور وخصم جلسة من الباقة. المتبقي: $newRemaining جلسات."
-            dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $deductionMessage"))
-            return Result.success(deductionMessage)
-        }
-        dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=false,attendedAt=now))
-        val message="تم تسجيل حضور الجلسة بنجاح. لا توجد باقة نشطة للخصم."
-        dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $message"))
-        return Result.success(message)
-    }
+        return inTransaction {
 
-    suspend fun createSession(patientId:Long,doctorId:Long?,therapistId:Long?,departmentId:Long?,serviceId:Long?,packageId:Long?=null,date:String,time:String,status:String="مجدولة",notes:String="",branchId:Long=1):Result<Long>{
+            val session=dao.getSessionById(sessionId) ?: return Result.failure(IllegalArgumentException("الجلسة غير موجودة"))
+            if(session.status=="حضر"||session.isDeductedFromPackage)return Result.failure(IllegalStateException("تم تسجيل الحضور مسبقاً لهذه الجلسة ولن يتم الخصم مرة أخرى."))
+            val patient=dao.getPatientById(session.patientId) ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            val now=System.currentTimeMillis()
+            val pkg=session.packageId?.let{dao.getPackageById(it)}?:dao.getActivePackageForPatient(patient.id)
+            if(pkg!=null&&pkg.remainingSessions>0){
+                val newUsed=pkg.usedSessions+1; val newRemaining=pkg.remainingSessions-1
+                dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=true,attendedAt=now))
+                dao.updatePackage(pkg.copy(usedSessions=newUsed,remainingSessions=newRemaining,status=if(newRemaining==0)"مكتملة" else "نشطة"))
+                dao.insertPackageSession(PackageSession(packageId=pkg.id,patientId=patient.id,sessionId=session.id,deductedAt=now,reason="حضور جلسة علاج طبيعي (${session.sessionNumber})",sessionsDeducted=1,remainingAfter=newRemaining))
+                dao.insertNotification(AppNotification(title="خصم جلسة من الباقة",message="تم تسجيل حضور المريض ${patient.name}. تم خصم جلسة واحدة. المتبقي: $newRemaining جلسات.",type="خصم باقة",relatedId=session.id))
+                dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم تسجيل حضوركم في جلسة العلاج الطبيعي اليوم.\nتم خصم جلسة واحدة من الباقة.\nالجلسات المستخدمة: $newUsed\nالجلسات المتبقية: $newRemaining\nالباقة: ${pkg.packageName}\n\nنتمنى لكم الشفاء والعافية.",templateType="SESSION_DEDUCTION"))
+                if(newRemaining in 1..3)dao.insertNotification(AppNotification(title=if(newRemaining==1)"تنبيه مهم: جلسة أخيرة" else "تنبيه قرب انتهاء الباقة",message="تبقى للمريض ${patient.name} $newRemaining جلسات فقط في باقته.",type="تنبيه باقة",relatedId=pkg.id))
+                if(newRemaining==0)dao.insertNotification(AppNotification(title="انتهاء الباقة",message="انتهت جميع جلسات باقة المريض ${patient.name}. يرجى التجديد لمواصلة العلاج.",type="تنبيه باقة",relatedId=pkg.id))
+                val deductionMessage="تم تسجيل الحضور وخصم جلسة من الباقة. المتبقي: $newRemaining جلسات."
+                dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $deductionMessage"))
+                return Result.success(deductionMessage)
+            }
+            dao.updateSession(session.copy(status="حضر",isDeductedFromPackage=false,attendedAt=now))
+            val message="تم تسجيل حضور الجلسة بنجاح. لا توجد باقة نشطة للخصم."
+            dao.insertAuditLog(AuditLog(user="الاستقبال / المعالج",action="تسجيل حضور جلسة",details="جلسة رقم ${session.sessionNumber} للمريض ${patient.name} - $message"))
+            return Result.success(message)
+        }
+
+        }
+        suspend fun createSession(patientId:Long,doctorId:Long?,therapistId:Long?,departmentId:Long?,serviceId:Long?,packageId:Long?=null,date:String,time:String,status:String="مجدولة",notes:String="",branchId:Long=1):Result<Long>{
         val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
         val sessionNum="SES-${System.currentTimeMillis()}"
         val id=dao.insertSession(ClinicSession(sessionNumber=sessionNum,patientId=patientId,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,packageId=packageId,date=date,time=time,status=status,notes=notes.trim(),branchId=branchId))
@@ -217,50 +224,59 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     suspend fun updateSessionStatus(sessionId:Long,status:String){dao.getSessionById(sessionId)?.let{session->dao.updateSession(session.copy(status=status));dao.insertAuditLog(AuditLog(user="المعالج",action="تحديث حالة جلسة",details="جلسة ${session.sessionNumber} أصبحت $status"))}}
 
     suspend fun createPackage(patientId:Long,packageName:String,price:Double,totalSessions:Int,startDate:String,endDate:String,notes:String,departmentId:Long?=null,serviceId:Long?=null,doctorId:Long?=null,therapistId:Long?=null,branchId:Long=1,generateSessions:Boolean=true):Result<Long>{
-        val patient = dao.getPatientById(patientId)
-            ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
-        if (packageName.isBlank()) return Result.failure(IllegalArgumentException("اسم الباقة مطلوب"))
-        if (price < 0.0) return Result.failure(IllegalArgumentException("سعر الباقة لا يمكن أن يكون سالباً"))
-        if (totalSessions <= 0) return Result.failure(IllegalArgumentException("عدد الجلسات يجب أن يكون أكبر من صفر"))
-        val pkg=PatientPackage(patientId=patientId,packageName=packageName.trim(),price=price,totalSessions=totalSessions,usedSessions=0,remainingSessions=totalSessions,startDate=startDate,endDate=endDate,status="نشطة",notes=notes.trim(),departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,branchId=branchId)
-        val id=dao.insertPackage(pkg)
-        if(generateSessions)dao.insertSessions((1..totalSessions).map{idx->ClinicSession(sessionNumber="PKG-$id-$idx",patientId=patientId,packageId=id,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,date=startDate,time="10:00 ص",status="مجدولة",notes="جلسة رقم $idx من إجمالي $totalSessions في باقة $packageName",branchId=branchId)})
-        dao.updatePatient(patient.copy(balanceDue=patient.balanceDue+price)); dao.insertAuditLog(AuditLog(user="الاستقبال",action="إنشاء باقة جديدة",details="تم إنشاء $packageName للمريض ${patient.name} بقيمة $price ر.ي بعدد $totalSessions جلسات - فرع $branchId")); return Result.success(id)
-    }
+        return inTransaction {
 
-    suspend fun createReceiptVoucher(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Long>{
-        if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
-        val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
-        val prevBalance=patient.balanceDue
-        if (prevBalance <= 0.0) return Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
-        if (amount > prevBalance) return Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
-        val voucherNumber="RV-${System.currentTimeMillis()}"
-        val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date())
-        val remainingBalance=prevBalance-amount
-        dao.updatePatient(patient.copy(balanceDue=remainingBalance)); val id=dao.insertReceipt(ReceiptVoucher(voucherNumber=voucherNumber,date=today,patientId=patientId,amount=amount,paymentMethod=paymentMethod,statement=statement.trim(),previousBalance=prevBalance,remainingBalance=remainingBalance,branchId=branchId))
-        dao.insertNotification(AppNotification(title="سند قبض مسجل",message="تم تسجيل سند قبض رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي.",type="قبض",relatedId=id))
-        dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام مبلغ: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
-        dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند قبض",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(id)
-    }
+            val patient = dao.getPatientById(patientId)
+                ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            if (packageName.isBlank()) return Result.failure(IllegalArgumentException("اسم الباقة مطلوب"))
+            if (price < 0.0) return Result.failure(IllegalArgumentException("سعر الباقة لا يمكن أن يكون سالباً"))
+            if (totalSessions <= 0) return Result.failure(IllegalArgumentException("عدد الجلسات يجب أن يكون أكبر من صفر"))
+            val pkg=PatientPackage(patientId=patientId,packageName=packageName.trim(),price=price,totalSessions=totalSessions,usedSessions=0,remainingSessions=totalSessions,startDate=startDate,endDate=endDate,status="نشطة",notes=notes.trim(),departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,branchId=branchId)
+            val id=dao.insertPackage(pkg)
+            if(generateSessions)dao.insertSessions((1..totalSessions).map{idx->ClinicSession(sessionNumber="PKG-$id-$idx",patientId=patientId,packageId=id,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,date=startDate,time="10:00 ص",status="مجدولة",notes="جلسة رقم $idx من إجمالي $totalSessions في باقة $packageName",branchId=branchId)})
+            dao.updatePatient(patient.copy(balanceDue=patient.balanceDue+price)); dao.insertAuditLog(AuditLog(user="الاستقبال",action="إنشاء باقة جديدة",details="تم إنشاء $packageName للمريض ${patient.name} بقيمة $price ر.ي بعدد $totalSessions جلسات - فرع $branchId")); return Result.success(id)
+        }
 
-    suspend fun createReceiptVoucherFull(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Pair<ReceiptVoucher,Patient>>{
-        if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
-        val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
-        val voucherNumber="RV-${System.currentTimeMillis()}"
-        val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date())
-        val prevBalance=patient.balanceDue
-        if (prevBalance <= 0.0) return Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
-        if (amount > prevBalance) return Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
-        val remainingBalance=prevBalance-amount
-        val updatedPatient=patient.copy(balanceDue=remainingBalance)
-        dao.updatePatient(updatedPatient)
-        val receipt=ReceiptVoucher(voucherNumber=voucherNumber,date=today,patientId=patientId,amount=amount,paymentMethod=paymentMethod,statement=statement.trim().ifBlank{"دفعة سداد فاتورة علاجية"},previousBalance=prevBalance,remainingBalance=remainingBalance,branchId=branchId); val id=dao.insertReceipt(receipt); val createdReceipt=receipt.copy(id=id)
-        dao.insertNotification(AppNotification(title=if(remainingBalance<=0)"سداد كامل الفاتورة" else "سداد جزئي للفاتورة",message="تم تسليم وسداد فاتورة رقم $voucherNumber للمريض ${patient.name} بمبلغ ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي.",type="قبض",relatedId=id))
-        dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام دفعة من الفاتورة: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند قبض رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالمبلغ المسدد: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
-        dao.insertAuditLog(AuditLog(user="المحاسب",action="تسليم وسداد فاتورة",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي (متبقي: $remainingBalance) - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(Pair(createdReceipt,updatedPatient))
-    }
+        }
+        suspend fun createReceiptVoucher(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Long>{
+        return inTransaction {
 
-    suspend fun createExpenseVoucher(beneficiaryType:String,beneficiaryName:String,amount:Double,paymentMethod:String,category:String,statement:String,branchId:Long=1):Result<Long>{
+            if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
+            val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            val prevBalance=patient.balanceDue
+            if (prevBalance <= 0.0) return Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
+            if (amount > prevBalance) return Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
+            val voucherNumber="RV-${System.currentTimeMillis()}"
+            val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date())
+            val remainingBalance=prevBalance-amount
+            dao.updatePatient(patient.copy(balanceDue=remainingBalance)); val id=dao.insertReceipt(ReceiptVoucher(voucherNumber=voucherNumber,date=today,patientId=patientId,amount=amount,paymentMethod=paymentMethod,statement=statement.trim(),previousBalance=prevBalance,remainingBalance=remainingBalance,branchId=branchId))
+            dao.insertNotification(AppNotification(title="سند قبض مسجل",message="تم تسجيل سند قبض رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي.",type="قبض",relatedId=id))
+            dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام مبلغ: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
+            dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند قبض",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(id)
+        }
+
+        }
+        suspend fun createReceiptVoucherFull(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Pair<ReceiptVoucher,Patient>>{
+        return inTransaction {
+
+            if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
+            val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            val voucherNumber="RV-${System.currentTimeMillis()}"
+            val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date())
+            val prevBalance=patient.balanceDue
+            if (prevBalance <= 0.0) return Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
+            if (amount > prevBalance) return Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
+            val remainingBalance=prevBalance-amount
+            val updatedPatient=patient.copy(balanceDue=remainingBalance)
+            dao.updatePatient(updatedPatient)
+            val receipt=ReceiptVoucher(voucherNumber=voucherNumber,date=today,patientId=patientId,amount=amount,paymentMethod=paymentMethod,statement=statement.trim().ifBlank{"دفعة سداد فاتورة علاجية"},previousBalance=prevBalance,remainingBalance=remainingBalance,branchId=branchId); val id=dao.insertReceipt(receipt); val createdReceipt=receipt.copy(id=id)
+            dao.insertNotification(AppNotification(title=if(remainingBalance<=0)"سداد كامل الفاتورة" else "سداد جزئي للفاتورة",message="تم تسليم وسداد فاتورة رقم $voucherNumber للمريض ${patient.name} بمبلغ ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي.",type="قبض",relatedId=id))
+            dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام دفعة من الفاتورة: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند قبض رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالمبلغ المسدد: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
+            dao.insertAuditLog(AuditLog(user="المحاسب",action="تسليم وسداد فاتورة",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي (متبقي: $remainingBalance) - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(Pair(createdReceipt,updatedPatient))
+        }
+
+        }
+        suspend fun createExpenseVoucher(beneficiaryType:String,beneficiaryName:String,amount:Double,paymentMethod:String,category:String,statement:String,branchId:Long=1):Result<Long>{
         if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر")); if(beneficiaryName.isBlank())return Result.failure(IllegalArgumentException("اسم المستفيد مطلوب")); val voucherNumber="PV-${System.currentTimeMillis()}"; val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date()); val id=dao.insertExpense(ExpenseVoucher(voucherNumber=voucherNumber,date=today,beneficiaryType=beneficiaryType,beneficiaryName=beneficiaryName.trim(),amount=amount,paymentMethod=paymentMethod,category=category.trim(),statement=statement.trim(),branchId=branchId)); dao.insertNotification(AppNotification(title="سند صرف مسجل",message="تم تسجيل سند صرف رقم $voucherNumber للمستفيد $beneficiaryName بمبلغ $amount ر.ي.",type="صرف",relatedId=id)); dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند صرف",details="سند رقم $voucherNumber - المستفيد: $beneficiaryName - مبلغ: $amount ر.ي - بيان: $statement")); return Result.success(id)
     }
 
