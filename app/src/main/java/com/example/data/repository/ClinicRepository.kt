@@ -75,7 +75,7 @@ private object PasswordHasher {
     }
 
     private fun toHex(bytes: ByteArray): String = buildString(bytes.size * 2) {
-        bytes.forEach { b -> append("%02x".format(b)) }
+        bytes.forEach { b -> append((b.toInt() and 0xff).toString(16).padStart(2, '0')) }
     }
 
     private fun fromHex(value: String): ByteArray? {
