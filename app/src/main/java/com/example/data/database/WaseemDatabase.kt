@@ -66,7 +66,7 @@ private object BootstrapPasswordHasher {
         MessageTemplate::class, AuditLog::class, AppLicense::class, CenterSettings::class,
         Branch::class, AppUser::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class WaseemDatabase : RoomDatabase() {
@@ -89,10 +89,10 @@ abstract class WaseemDatabase : RoomDatabase() {
                     "waseem_medical_pro.db"
                 )
                     .addMigrations(MIGRATION_3_4)
-                    // Allows an installation that contains a newer development schema to open
-                    // after installing an older stable build instead of crashing at startup.
-                    // Normal forward migrations are still preferred and existing data is retained.
-                    .fallbackToDestructiveMigrationOnDowngrade()
+                    // Version 5 intentionally resets incompatible development databases.
+                    // This prevents startup crashes caused by schema changes that were made
+                    // without a matching Room migration in earlier trial builds.
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance ->
                         INSTANCE = instance
@@ -123,7 +123,6 @@ abstract class WaseemDatabase : RoomDatabase() {
             if (dao.getSettingsDirect() == null) dao.updateSettings(CenterSettings(id=1,centerName="مركز وسيم للعلاج الطبيعي والتأهيل",developerName="وسيم الفرح",developerPhone="772357240",address="اليمن - صنعاء - شارع الستين الغربي",phone="772357240",whatsapp="772357240",currency="ر.ي",autoSyncGoogleDrive=false,syncIntervalHours=6,isDarkMode=false,enableDoctorAlerts=true))
             if (dao.getLicenseDirect() == null) dao.setLicense(AppLicense(id=1,customerName="مركز وسيم الطبي والتأهيلي",centerName="نظام وسيم الطبي PRO",licenseNumber="WMP-TRIAL-"+UUID.randomUUID().toString().take(8).uppercase(),startDate=now,endDate=now+30L*24L*60L*60L*1000L,licenseType="TRIAL",status="ACTIVE",installationId="INST-"+UUID.randomUUID().toString().take(12).uppercase()))
 
-            // Production data is never fabricated automatically.
             @Suppress("UNUSED_VARIABLE") val unusedToday = todayStr
         }
     }
