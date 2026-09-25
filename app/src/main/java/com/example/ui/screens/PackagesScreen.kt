@@ -31,6 +31,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,6 +63,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
 import com.example.data.models.Patient
 import com.example.data.models.PatientPackage
 import com.example.ui.components.StatusBadge
@@ -274,15 +282,55 @@ fun AddPackageDialogModal(
     val context = LocalContext.current
     val patients by viewModel.patients.collectAsStateWithLifecycle()
 
-    var selectedPatient by remember { mutableStateOf<Patient?>(patients.firstOrNull()) }
+    var selectedPatient by remember { mutableStateOf<Patient?>(null) }
     var patientDropdownExpanded by remember { mutableStateOf(false) }
 
-    var packageName by remember { mutableStateOf("باقة علاج طبيعي وتأهيل شهرية") }
-    var priceStr by remember { mutableStateOf("25000") }
-    var totalSessionsStr by remember { mutableStateOf("10") }
+    var packageName by remember { mutableStateOf("") }
+    var priceStr by remember { mutableStateOf("") }
+    var totalSessionsStr by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf(viewModel.todayDateStr) }
-    var endDate by remember { mutableStateOf("2026-10-24") }
-    var notes by remember { mutableStateOf("جلسات علاجية منتظمة") }
+    var endDate by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH) }
+    if (startDate.isBlank()) startDate = viewModel.todayDateStr
+    if (endDate.isBlank()) endDate = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 30) }.time.let(dateFormatter::format)
+
+    fun formatPickerDate(millis: Long): String = dateFormatter.format(Date(millis))
+    fun parseDateMillis(value: String): Long? = runCatching { dateFormatter.parse(value)?.time }.getOrNull()
+
+    if (showStartDatePicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = parseDateMillis(startDate))
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { startDate = formatPickerDate(it) }
+                    showStartDatePicker = false
+                }) { Text("تأكيد") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) { Text("إلغاء") }
+            }
+        ) { DatePicker(state = state) }
+    }
+
+    if (showEndDatePicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = parseDateMillis(endDate))
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { endDate = formatPickerDate(it) }
+                    showEndDatePicker = false
+                }) { Text("تأكيد") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) { Text("إلغاء") }
+            }
+        ) { DatePicker(state = state) }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -356,7 +404,41 @@ fun AddPackageDialogModal(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                 Row(
+                     modifier = Modifier.fillMaxWidth(),
+                     horizontalArrangement = Arrangement.spacedBy(8.dp)
+                 ) {
+                     OutlinedTextField(
+                         value = startDate,
+                         onValueChange = {},
+                         readOnly = true,
+                         label = { Text("تاريخ البداية") },
+                         modifier = Modifier.weight(1f).clickable { showStartDatePicker = true }
+                     )
+                     OutlinedTextField(
+                         value = endDate,
+                         onValueChange = {},
+                         readOnly = true,
+                         label = { Text("تاريخ النهاية") },
+                         modifier = Modifier.weight(1f).clickable { showEndDatePicker = true }
+                     )
+                 }
+
+                 Spacer(modifier = Modifier.height(8.dp))
+
+                 OutlinedTextField(
+                     value = notes,
+                     onValueChange = { notes = it },
+                     label = { Text("ملاحظات الباقة") },
+                     minLines = 2,
+                     modifier = Modifier.fillMaxWidth()
+                 )
+
+                 Spacer(modifier = Modifier.height(16.dp))
+
+Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     OutlinedButton(onClick = onDismiss) { Text("إلغاء") }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
