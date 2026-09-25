@@ -1,6 +1,8 @@
 package com.example.data.repository
 
 import com.example.data.dao.ClinicDao
+import com.example.data.backup.BackupManager
+import com.example.data.database.WaseemDatabase
 import com.example.data.models.AppLicense
 import com.example.data.models.AppMessage
 import com.example.data.models.AppNotification
@@ -85,7 +87,7 @@ private object PasswordHasher {
     }
 }
 
-class ClinicRepository(private val dao: ClinicDao) {
+class ClinicRepository(private val dao: ClinicDao, private val database: WaseemDatabase? = null) {
     val allBranches: Flow<List<Branch>> = dao.getAllBranches()
     val allUsers: Flow<List<AppUser>> = dao.getAllUsers()
     val allPatients: Flow<List<Patient>> = dao.getAllPatients()
@@ -109,6 +111,19 @@ class ClinicRepository(private val dao: ClinicDao) {
     val allAuditLogs: Flow<List<AuditLog>> = dao.getAllAuditLogs()
     val licenseFlow: Flow<AppLicense?> = dao.getLicense()
     val settingsFlow: Flow<CenterSettings?> = dao.getSettings()
+
+    private val backupManager: BackupManager?
+        get() = database?.let { BackupManager(it) }
+
+    suspend fun exportBackupJson(): String {
+        return backupManager?.exportJson()
+            ?: throw IllegalStateException("خدمة النسخ الاحتياطي غير مهيأة")
+    }
+
+    suspend fun restoreBackupJson(json: String): Result<Unit> {
+        return backupManager?.restoreJson(json)
+            ?: Result.failure(IllegalStateException("خدمة النسخ الاحتياطي غير مهيأة"))
+    }
 
     fun searchPatients(query: String): Flow<List<Patient>> = dao.searchPatients(query.trim())
     fun getAppointmentsByDate(date: String): Flow<List<Appointment>> = dao.getAppointmentsByDate(date)
