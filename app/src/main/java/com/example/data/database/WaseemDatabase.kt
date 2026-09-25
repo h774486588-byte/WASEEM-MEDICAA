@@ -6,32 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import com.example.data.dao.ClinicDao
-import com.example.data.models.AppLicense
-import com.example.data.models.AppMessage
-import com.example.data.models.AppNotification
-import com.example.data.models.AppUser
-import com.example.data.models.Appointment
-import com.example.data.models.AuditLog
-import com.example.data.models.Branch
-import com.example.data.models.CenterSettings
-import com.example.data.models.ClinicSession
-import com.example.data.models.Department
-import com.example.data.models.DiagnosisItem
-import com.example.data.models.Doctor
-import com.example.data.models.Employee
-import com.example.data.models.ExpenseVoucher
-import com.example.data.models.InventoryItem
-import com.example.data.models.MedicalService
-import com.example.data.models.MessageTemplate
-import com.example.data.models.PackageSession
-import com.example.data.models.Patient
-import com.example.data.models.PatientPackage
-import com.example.data.models.ReceiptVoucher
-import com.example.data.models.SalaryDeduction
-import com.example.data.models.Therapist
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.example.data.models.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -81,7 +56,10 @@ abstract class WaseemDatabase : RoomDatabase() {
 
         @Volatile private var INSTANCE: WaseemDatabase? = null
 
-        fun getDatabase(context: Context, scope: CoroutineScope): WaseemDatabase {
+        // The database is opened here only. Bootstrap data is initialized once by MainActivity.
+        // Previously this method also launched ensureEssentialData asynchronously while
+        // MainActivity awaited the same operation, creating a first-launch race.
+        fun getDatabase(context: Context): WaseemDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
@@ -89,18 +67,9 @@ abstract class WaseemDatabase : RoomDatabase() {
                     "waseem_medical_pro.db"
                 )
                     .addMigrations(MIGRATION_3_4)
-                    // Version 5 intentionally resets incompatible development databases.
-                    // This prevents startup crashes caused by schema changes that were made
-                    // without a matching Room migration in earlier trial builds.
                     .fallbackToDestructiveMigration()
                     .build()
-                    .also { instance ->
-                        INSTANCE = instance
-                        scope.launch(Dispatchers.IO) {
-                            runCatching { ensureEssentialData(instance.clinicDao()) }
-                                .onFailure { it.printStackTrace() }
-                        }
-                    }
+                    .also { INSTANCE = it }
             }
         }
 
