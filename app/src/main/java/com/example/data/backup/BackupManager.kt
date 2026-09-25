@@ -86,6 +86,26 @@ class BackupManager(private val database: WaseemDatabase) {
             return Result.failure(IllegalArgumentException("هذه النسخة ليست لنظام وسيم الطبي PRO"))
         }
 
+        // Never replace a live database with a backup that cannot restore
+        // the minimum administrative configuration required to operate the app.
+        if (payload.branches.isEmpty() || payload.users.isEmpty() || payload.settings.isEmpty()) {
+            return Result.failure(
+                IllegalArgumentException("النسخة الاحتياطية ناقصة: يجب أن تحتوي على الفروع والمستخدمين وإعدادات المركز")
+            )
+        }
+        if (payload.users.none { it.isSystemOwner || it.role == "SUPER_ADMIN" }) {
+            return Result.failure(
+                IllegalArgumentException("النسخة الاحتياطية لا تحتوي على حساب مالك/مدير عام صالح")
+            )
+        }
+        val branchIds = payload.branches.map { it.id }.toSet()
+        if (branchIds.size != payload.branches.size) {
+            return Result.failure(IllegalArgumentException("النسخة الاحتياطية تحتوي على فروع مكررة"))
+        }
+        if (payload.patients.any { it.branchId !in branchIds }) {
+            return Result.failure(IllegalArgumentException("توجد ملفات مرضى مرتبطة بفروع غير موجودة في النسخة الاحتياطية"))
+        }
+
         return try {
             database.withTransaction {
                 val dao = database.clinicDao()
