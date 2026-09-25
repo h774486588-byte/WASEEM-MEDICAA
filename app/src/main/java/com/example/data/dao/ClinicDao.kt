@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ClinicDao {
     @Query("SELECT * FROM patients WHERE isArchived = 0 ORDER BY id DESC") fun getAllPatients(): Flow<List<Patient>>
+    @Query("SELECT * FROM patients ORDER BY id DESC") suspend fun getAllPatientsSnapshot(): List<Patient>
     @Query("SELECT * FROM patients WHERE id = :id") suspend fun getPatientById(id: Long): Patient?
     @Query("SELECT * FROM patients WHERE (name LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%' OR fileNumber LIKE '%' || :query || '%') AND isArchived = 0 ORDER BY name ASC") fun searchPatients(query: String): Flow<List<Patient>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPatient(patient: Patient): Long
@@ -20,25 +21,30 @@ interface ClinicDao {
     @Query("SELECT COUNT(*) FROM patients") suspend fun getPatientsCountDirect(): Int
 
     @Query("SELECT * FROM doctors ORDER BY name ASC") fun getAllDoctors(): Flow<List<Doctor>>
+    @Query("SELECT * FROM doctors ORDER BY name ASC") suspend fun getAllDoctorsSnapshot(): List<Doctor>
     @Query("SELECT * FROM doctors WHERE id = :id") suspend fun getDoctorById(id: Long): Doctor?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertDoctor(doctor: Doctor): Long
     @Update suspend fun updateDoctor(doctor: Doctor)
     @Query("DELETE FROM doctors WHERE id = :id") suspend fun deleteDoctor(id: Long)
     @Query("SELECT * FROM therapists ORDER BY name ASC") fun getAllTherapists(): Flow<List<Therapist>>
+    @Query("SELECT * FROM therapists ORDER BY name ASC") suspend fun getAllTherapistsSnapshot(): List<Therapist>
     @Query("SELECT * FROM therapists WHERE id = :id") suspend fun getTherapistById(id: Long): Therapist?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTherapist(therapist: Therapist): Long
     @Update suspend fun updateTherapist(therapist: Therapist)
     @Query("DELETE FROM therapists WHERE id = :id") suspend fun deleteTherapist(id: Long)
 
     @Query("SELECT * FROM departments ORDER BY name ASC") fun getAllDepartments(): Flow<List<Department>>
+    @Query("SELECT * FROM departments ORDER BY name ASC") suspend fun getAllDepartmentsSnapshot(): List<Department>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertDepartment(department: Department): Long
     @Update suspend fun updateDepartment(department: Department)
     @Query("DELETE FROM departments WHERE id = :id") suspend fun deleteDepartment(id: Long)
     @Query("SELECT * FROM services ORDER BY name ASC") fun getAllServices(): Flow<List<MedicalService>>
+    @Query("SELECT * FROM services ORDER BY name ASC") suspend fun getAllServicesSnapshot(): List<MedicalService>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertService(service: MedicalService): Long
     @Update suspend fun updateService(service: MedicalService)
     @Query("DELETE FROM services WHERE id = :id") suspend fun deleteService(id: Long)
     @Query("SELECT * FROM diagnoses ORDER BY name ASC") fun getAllDiagnoses(): Flow<List<DiagnosisItem>>
+    @Query("SELECT * FROM diagnoses ORDER BY name ASC") suspend fun getAllDiagnosesSnapshot(): List<DiagnosisItem>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertDiagnosis(diagnosis: DiagnosisItem): Long
 
     @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") fun getAllAppointments(): Flow<List<Appointment>>
@@ -52,6 +58,7 @@ interface ClinicDao {
     @Query("DELETE FROM appointments WHERE id = :id") suspend fun deleteAppointment(id: Long)
 
     @Query("SELECT * FROM packages ORDER BY id DESC") fun getAllPackages(): Flow<List<PatientPackage>>
+    @Query("SELECT * FROM packages ORDER BY id DESC") suspend fun getAllPackagesSnapshot(): List<PatientPackage>
     @Query("SELECT * FROM packages WHERE patientId = :patientId ORDER BY id DESC") fun getPackagesByPatient(patientId: Long): Flow<List<PatientPackage>>
     @Query("SELECT * FROM packages WHERE patientId = :patientId AND status = 'نشطة' AND remainingSessions > 0 ORDER BY id DESC LIMIT 1") suspend fun getActivePackageForPatient(patientId: Long): PatientPackage?
     @Query("SELECT * FROM packages WHERE id = :id") suspend fun getPackageById(id: Long): PatientPackage?
@@ -59,9 +66,11 @@ interface ClinicDao {
     @Update suspend fun updatePackage(pkg: PatientPackage)
     @Query("DELETE FROM packages WHERE id = :id") suspend fun deletePackage(id: Long)
     @Query("SELECT * FROM package_sessions WHERE packageId = :packageId ORDER BY deductedAt DESC") fun getPackageSessions(packageId: Long): Flow<List<PackageSession>>
+    @Query("SELECT * FROM package_sessions ORDER BY deductedAt DESC") suspend fun getAllPackageSessionsSnapshot(): List<PackageSession>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPackageSession(deduction: PackageSession): Long
 
     @Query("SELECT * FROM sessions ORDER BY date DESC, time ASC") fun getAllSessions(): Flow<List<ClinicSession>>
+    @Query("SELECT * FROM sessions ORDER BY date DESC, time ASC") suspend fun getAllSessionsSnapshot(): List<ClinicSession>
     @Query("SELECT * FROM sessions WHERE date = :date ORDER BY time ASC") fun getSessionsByDate(date: String): Flow<List<ClinicSession>>
     @Query("SELECT * FROM sessions WHERE id = :id") suspend fun getSessionById(id: Long): ClinicSession?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertSession(session: ClinicSession): Long
@@ -70,46 +79,57 @@ interface ClinicDao {
     @Query("DELETE FROM sessions WHERE id = :id") suspend fun deleteSession(id: Long)
 
     @Query("SELECT * FROM receipts ORDER BY id DESC") fun getAllReceipts(): Flow<List<ReceiptVoucher>>
+    @Query("SELECT * FROM receipts ORDER BY id DESC") suspend fun getAllReceiptsSnapshot(): List<ReceiptVoucher>
     @Query("SELECT * FROM receipts WHERE patientId = :patientId ORDER BY id DESC") fun getReceiptsByPatient(patientId: Long): Flow<List<ReceiptVoucher>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertReceipt(receipt: ReceiptVoucher): Long
     @Query("SELECT * FROM expenses ORDER BY id DESC") fun getAllExpenses(): Flow<List<ExpenseVoucher>>
+    @Query("SELECT * FROM expenses ORDER BY id DESC") suspend fun getAllExpensesSnapshot(): List<ExpenseVoucher>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertExpense(expense: ExpenseVoucher): Long
 
     @Query("SELECT * FROM employees ORDER BY name ASC") fun getAllEmployees(): Flow<List<Employee>>
+    @Query("SELECT * FROM employees ORDER BY name ASC") suspend fun getAllEmployeesSnapshot(): List<Employee>
     @Query("SELECT * FROM employees WHERE id = :id") suspend fun getEmployeeById(id: Long): Employee?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertEmployee(employee: Employee): Long
     @Update suspend fun updateEmployee(employee: Employee)
     @Query("DELETE FROM employees WHERE id = :id") suspend fun deleteEmployee(id: Long)
     @Query("SELECT * FROM salary_deductions ORDER BY date DESC") fun getAllDeductions(): Flow<List<SalaryDeduction>>
+    @Query("SELECT * FROM salary_deductions ORDER BY date DESC") suspend fun getAllDeductionsSnapshot(): List<SalaryDeduction>
     @Query("SELECT * FROM salary_deductions WHERE employeeId = :employeeId ORDER BY date DESC") fun getDeductionsByEmployee(employeeId: Long): Flow<List<SalaryDeduction>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertDeduction(deduction: SalaryDeduction): Long
     @Query("DELETE FROM salary_deductions WHERE id = :id") suspend fun deleteDeduction(id: Long)
 
     @Query("SELECT * FROM inventory ORDER BY name ASC") fun getAllInventory(): Flow<List<InventoryItem>>
+    @Query("SELECT * FROM inventory ORDER BY name ASC") suspend fun getAllInventorySnapshot(): List<InventoryItem>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertInventoryItem(item: InventoryItem): Long
     @Update suspend fun updateInventoryItem(item: InventoryItem)
     @Query("DELETE FROM inventory WHERE id = :id") suspend fun deleteInventoryItem(id: Long)
 
     @Query("SELECT * FROM notifications ORDER BY timestamp DESC") fun getAllNotifications(): Flow<List<AppNotification>>
+    @Query("SELECT * FROM notifications ORDER BY timestamp DESC") suspend fun getAllNotificationsSnapshot(): List<AppNotification>
     @Query("SELECT COUNT(*) FROM notifications WHERE isRead = 0") fun getUnreadNotificationsCount(): Flow<Int>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertNotification(notification: AppNotification): Long
     @Query("UPDATE notifications SET isRead = 1") suspend fun markAllNotificationsRead()
     @Query("DELETE FROM notifications") suspend fun clearAllNotifications()
 
     @Query("SELECT * FROM messages ORDER BY createdAt DESC") fun getAllMessages(): Flow<List<AppMessage>>
+    @Query("SELECT * FROM messages ORDER BY createdAt DESC") suspend fun getAllMessagesSnapshot(): List<AppMessage>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertMessage(message: AppMessage): Long
     @Query("UPDATE messages SET status = :status WHERE id = :id") suspend fun updateMessageStatus(id: Long, status: String)
     @Query("SELECT * FROM message_templates") fun getAllTemplates(): Flow<List<MessageTemplate>>
+    @Query("SELECT * FROM message_templates") suspend fun getAllTemplatesSnapshot(): List<MessageTemplate>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTemplate(template: MessageTemplate): Long
     @Update suspend fun updateTemplate(template: MessageTemplate)
 
     @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 300") fun getAllAuditLogs(): Flow<List<AuditLog>>
+    @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC") suspend fun getAllAuditLogsSnapshot(): List<AuditLog>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAuditLog(log: AuditLog): Long
 
     @Query("SELECT * FROM licenses WHERE id = 1") fun getLicense(): Flow<AppLicense?>
+    @Query("SELECT * FROM licenses") suspend fun getAllLicensesSnapshot(): List<AppLicense>
     @Query("SELECT * FROM licenses WHERE id = 1") suspend fun getLicenseDirect(): AppLicense?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun setLicense(license: AppLicense)
     @Query("SELECT * FROM settings WHERE id = 1") fun getSettings(): Flow<CenterSettings?>
+    @Query("SELECT * FROM settings") suspend fun getAllSettingsSnapshot(): List<CenterSettings>
     @Query("SELECT * FROM settings WHERE id = 1") suspend fun getSettingsDirect(): CenterSettings?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun updateSettings(settings: CenterSettings)
 
@@ -121,6 +141,20 @@ interface ClinicDao {
     @Query("DELETE FROM receipts") suspend fun clearReceipts()
     @Query("DELETE FROM expenses") suspend fun clearExpenses()
     @Query("DELETE FROM salary_deductions") suspend fun clearDeductions()
+    @Query("DELETE FROM inventory") suspend fun clearInventory()
+    @Query("DELETE FROM employees") suspend fun clearEmployees()
+    @Query("DELETE FROM notifications") suspend fun clearNotifications()
+    @Query("DELETE FROM messages") suspend fun clearMessages()
+    @Query("DELETE FROM message_templates") suspend fun clearTemplates()
+    @Query("DELETE FROM doctors") suspend fun clearDoctors()
+    @Query("DELETE FROM therapists") suspend fun clearTherapists()
+    @Query("DELETE FROM departments") suspend fun clearDepartments()
+    @Query("DELETE FROM services") suspend fun clearServices()
+    @Query("DELETE FROM diagnoses") suspend fun clearDiagnoses()
+    @Query("DELETE FROM branches") suspend fun clearBranches()
+    @Query("DELETE FROM users") suspend fun clearUsers()
+    @Query("DELETE FROM settings") suspend fun clearSettings()
+    @Query("DELETE FROM licenses") suspend fun clearLicenses()
     @Query("DELETE FROM audit_logs") suspend fun clearAuditLogs()
 
     @Query("SELECT * FROM branches ORDER BY isMainBranch DESC, name ASC") fun getAllBranches(): Flow<List<Branch>>
