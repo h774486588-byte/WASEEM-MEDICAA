@@ -49,6 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -102,6 +103,7 @@ import kotlin.math.max
 // 1. ADD PATIENT DIALOG (تسجيل حالة لأول مرة)
 // Options: حفظ فقط، حفظ وإرسال واتساب، حفظ وإرسال SMS، طباعة كرت المريض
 // =====================================================================
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPatientDialog(
     viewModel: ClinicViewModel,
