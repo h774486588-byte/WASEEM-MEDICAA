@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val repository by lazy {
-        ClinicRepository(database.clinicDao())
+        ClinicRepository(database.clinicDao(), database)
     }
 
     private val clinicViewModel: ClinicViewModel by viewModels {
