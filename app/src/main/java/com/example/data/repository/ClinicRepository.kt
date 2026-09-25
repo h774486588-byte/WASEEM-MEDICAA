@@ -227,14 +227,14 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
         return inTransaction {
 
             val patient = dao.getPatientById(patientId)
-                ?: return Result.failure(IllegalArgumentException("المريض غير موجود"))
-            if (packageName.isBlank()) return Result.failure(IllegalArgumentException("اسم الباقة مطلوب"))
-            if (price < 0.0) return Result.failure(IllegalArgumentException("سعر الباقة لا يمكن أن يكون سالباً"))
-            if (totalSessions <= 0) return Result.failure(IllegalArgumentException("عدد الجلسات يجب أن يكون أكبر من صفر"))
+                ?: return@inTransaction Result.failure(IllegalArgumentException("المريض غير موجود"))
+            if (packageName.isBlank()) return@inTransaction Result.failure(IllegalArgumentException("اسم الباقة مطلوب"))
+            if (price < 0.0) return@inTransaction Result.failure(IllegalArgumentException("سعر الباقة لا يمكن أن يكون سالباً"))
+            if (totalSessions <= 0) return@inTransaction Result.failure(IllegalArgumentException("عدد الجلسات يجب أن يكون أكبر من صفر"))
             val pkg=PatientPackage(patientId=patientId,packageName=packageName.trim(),price=price,totalSessions=totalSessions,usedSessions=0,remainingSessions=totalSessions,startDate=startDate,endDate=endDate,status="نشطة",notes=notes.trim(),departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,branchId=branchId)
             val id=dao.insertPackage(pkg)
             if(generateSessions)dao.insertSessions((1..totalSessions).map{idx->ClinicSession(sessionNumber="PKG-$id-$idx",patientId=patientId,packageId=id,doctorId=doctorId?:patient.doctorId,therapistId=therapistId?:patient.therapistId,departmentId=departmentId?:patient.departmentId,serviceId=serviceId?:patient.serviceId,date=startDate,time="10:00 ص",status="مجدولة",notes="جلسة رقم $idx من إجمالي $totalSessions في باقة $packageName",branchId=branchId)})
-            dao.updatePatient(patient.copy(balanceDue=patient.balanceDue+price)); dao.insertAuditLog(AuditLog(user="الاستقبال",action="إنشاء باقة جديدة",details="تم إنشاء $packageName للمريض ${patient.name} بقيمة $price ر.ي بعدد $totalSessions جلسات - فرع $branchId")); return Result.success(id)
+            dao.updatePatient(patient.copy(balanceDue=patient.balanceDue+price)); dao.insertAuditLog(AuditLog(user="الاستقبال",action="إنشاء باقة جديدة",details="تم إنشاء $packageName للمريض ${patient.name} بقيمة $price ر.ي بعدد $totalSessions جلسات - فرع $branchId")); return@inTransaction Result.success(id)
         }
     }
 
