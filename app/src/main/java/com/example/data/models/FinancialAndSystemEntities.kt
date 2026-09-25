@@ -68,7 +68,8 @@ data class InventoryItem(
     val quantity: Int,
     val minLimit: Int = 5,
     val unitPrice: Double,
-    val unit: String = "قطعة"
+    val unit: String = "قطعة",
+    val barcode: String = ""
 )
 
 @Entity(tableName = "notifications")
