@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Compile, Test and Package APK
+    name: Compile, Test and Publish APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -69,11 +69,35 @@ jobs:
           export PATH="$JAVA_HOME/bin:$PATH"
           /tmp/gradle-9.3.1/bin/gradle :app:assembleDebug --stacktrace --no-daemon --no-configuration-cache
 
-      - name: Verify debug APK
+      - name: Verify APK
         shell: bash
         run: |
           set -euxo pipefail
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-          sha256sum app/build/outputs/apk/debug/app-debug.apk
-          echo "APK_PATH=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_STEP_SUMMARY"
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK" | tee /tmp/apk.sha256
+
+      - name: Publish APK release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          TAG="v1.0.0-build.${{ github.run_number }}"
+          TITLE="نظام وسيم الطبي PRO - ${{ github.run_number }}"
+          NOTES="نسخة APK قابلة للتثبيت من نظام وسيم الطبي PRO.
+          Commit: ${{ github.sha }}
+          النوع: Debug APK
+          تم اجتياز اختبارات الوحدة والبناء في GitHub Actions."
+          gh --version
+          gh release create "$TAG" "$APK"             --repo "${{ github.repository }}"             --title "$TITLE"             --notes "$NOTES"
+
+      - name: Write build summary
+        shell: bash
+        run: |
+          echo "### WASEEM MEDICAL PRO" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK: Debug" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/v1.0.0-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_STEP_SUMMARY"
