@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -68,6 +69,8 @@ fun InventoryScreen(
     val context = LocalContext.current
     val inventory by viewModel.inventory.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    var barcodeQuery by remember { mutableStateOf("") }
+    var barcodeResult by remember { mutableStateOf<InventoryItem?>(null) }
 
     Scaffold(
         topBar = {
@@ -99,6 +102,73 @@ fun InventoryScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            "بحث سريع بالباركود",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = barcodeQuery,
+                                onValueChange = { barcodeQuery = it.filter(Char::isDigit) },
+                                label = { Text("رقم الباركود") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f).testTag("inventory_barcode_search")
+                            )
+                            Button(
+                                onClick = {
+                                    if (barcodeQuery.isBlank()) {
+                                        Toast.makeText(context, "أدخل رقم الباركود أولاً", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.findInventoryByBarcode(barcodeQuery) { item ->
+                                            barcodeResult = item
+                                            Toast.makeText(
+                                                context,
+                                                if (item == null) "لم يتم العثور على صنف بهذا الباركود" else "تم العثور على: ${item.name}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MedicalBlue)
+                            ) {
+                                Icon(Icons.Default.Search, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("بحث")
+                            }
+                        }
+                        barcodeResult?.let { found ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(found.name, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "الكمية: ${found.quantity} ${found.unit} | السعر: ${formatArabicCurrency(found.unitPrice)}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             items(inventory) { item ->
                 val isLow = item.quantity <= item.minLimit
                 Card(
@@ -146,6 +216,13 @@ fun InventoryScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text("سعر الوحدة: ${formatArabicCurrency(item.unitPrice)}", style = MaterialTheme.typography.bodySmall)
+                        if (item.barcode.isNotBlank()) {
+                            Text(
+                                "الباركود: ${item.barcode}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -165,6 +242,7 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
     var quantityStr by remember { mutableStateOf("10") }
     var minLimitStr by remember { mutableStateOf("3") }
     var priceStr by remember { mutableStateOf("2500") }
+    var barcode by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
@@ -181,6 +259,15 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it.filter { c -> c.isDigit() } }, label = { Text("سعر الوحدة (ر.ي)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = barcode,
+                    onValueChange = { barcode = it.filter(Char::isDigit) },
+                    label = { Text("الباركود (اختياري)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     OutlinedButton(onClick = onDismiss) { Text("إلغاء") }
@@ -199,7 +286,8 @@ fun AddInventoryDialogModal(viewModel: ClinicViewModel, onDismiss: () -> Unit) {
                                     category = category,
                                     quantity = qty,
                                     minLimit = minLimitStr.toIntOrNull() ?: 2,
-                                    unitPrice = price
+                                    unitPrice = price,
+                                    barcode = barcode.trim()
                                 )
                             ) { success, msg ->
                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
