@@ -175,13 +175,13 @@ fun BackupScreen(
                                     viewModel.createBackup { success, result ->
                                         if (!success) {
                                             Toast.makeText(context, result, Toast.LENGTH_LONG).show()
-                                            return@createBackup
+                                        } else {
+                                            pendingBackupJson = result
+                                            val fileName = "WaseemMedicalPro_Backup_" +
+                                                SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(Date()) +
+                                                ".json"
+                                            createBackupLauncher.launch(fileName)
                                         }
-                                        pendingBackupJson = result
-                                        val fileName = "WaseemMedicalPro_Backup_" +
-                                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(Date()) +
-                                            ".json"
-                                        createBackupLauncher.launch(fileName)
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MedicalBlue),
