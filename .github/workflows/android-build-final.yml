@@ -1,0 +1,79 @@
+name: WASEEM Medical PRO - Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile, Test and Package APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source manually
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git init
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git fetch --depth 1 origin "${{ github.sha }}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Prepare Android SDK and Java
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+          export PATH="$JAVA_HOME/bin:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:$PATH"
+          java -version
+          sdkmanager --version
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
+      - name: Install Gradle 9.3.1
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fsSL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o /tmp/gradle-9.3.1-bin.zip
+          unzip -q /tmp/gradle-9.3.1-bin.zip -d /tmp
+          test -x /tmp/gradle-9.3.1/bin/gradle
+          /tmp/gradle-9.3.1/bin/gradle --version
+
+      - name: Verify project
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f app/build.gradle.kts
+          test -f gradle.properties
+          test -d app/src/main
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          /tmp/gradle-9.3.1/bin/gradle test --stacktrace --no-daemon --no-configuration-cache
+
+      - name: Assemble debug APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          /tmp/gradle-9.3.1/bin/gradle :app:assembleDebug --stacktrace --no-daemon --no-configuration-cache
+
+      - name: Verify debug APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+          echo "APK_PATH=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_STEP_SUMMARY"
