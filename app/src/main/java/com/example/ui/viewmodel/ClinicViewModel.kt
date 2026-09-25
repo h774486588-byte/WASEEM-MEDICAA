@@ -869,13 +869,17 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
                 onResult(false, "المستخدم غير موجود")
                 return@launch
             }
-            if (user.passwordHash != oldPass.trim()) {
+            if (!repository.verifyUserPassword(userId, oldPass)) {
                 onResult(false, "كلمة المرور الحالية غير صحيحة")
                 return@launch
             }
-            repository.updateUserPassword(userId, newPass.trim(), user.fullName)
-            _currentUser.value = user.copy(passwordHash = newPass.trim())
-            onResult(true, "تم تغيير كلمة المرور بنجاح")
+            try {
+                repository.updateUserPassword(userId, newPass, user.fullName)
+                _currentUser.value = repository.getUserByUsername(user.username)
+                onResult(true, "تم تغيير كلمة المرور بنجاح")
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "تعذر تغيير كلمة المرور")
+            }
         }
     }
 
