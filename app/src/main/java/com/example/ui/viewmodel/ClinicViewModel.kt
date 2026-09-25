@@ -777,6 +777,12 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
         }
     }
 
+    fun findInventoryByBarcode(barcode: String, onResult: (InventoryItem?) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.findInventoryByBarcode(barcode.trim()))
+        }
+    }
+
     fun markAllNotificationsRead() {
         viewModelScope.launch {
             repository.markAllNotificationsRead()
