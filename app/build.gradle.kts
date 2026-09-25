@@ -89,6 +89,7 @@ dependencies {
   implementation(libs.firebase.ai)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.firebase.appcheck.debug)
+  implementation(libs.play.services.code.scanner)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
