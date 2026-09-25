@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.R
 import com.example.ui.components.ManageBranchesDialog
 import com.example.ui.components.ManageUsersDialog
@@ -516,7 +517,7 @@ fun MainScreen(viewModel: ClinicViewModel) {
                 },
                 text = {
                     Column {
-                        Text("نظام وسيم الطبي PRO - الإصدار v3.5 PRO", fontWeight = FontWeight.Bold, color = MedicalBlue)
+                        Text("نظام وسيم الطبي PRO - الإصدار ${BuildConfig.VERSION_NAME} PRO", fontWeight = FontWeight.Bold, color = MedicalBlue)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("نظام إداري وطبي متكامل لإدارة العيادات والمراكز الطبية ومراكز التأهيل والعلاج الطبيعي.")
                         Spacer(modifier = Modifier.height(10.dp))
@@ -541,7 +542,7 @@ fun MainScreen(viewModel: ClinicViewModel) {
                 },
                 text = {
                     Column {
-                        Text("الإصدار الحالي مثبت: v3.5 PRO - النسخة الأحدث والأكثر استقراراً.")
+                        Text("الإصدار الحالي المثبت: ${BuildConfig.VERSION_NAME} PRO.")
                         Spacer(modifier = Modifier.height(6.dp))
                         Text("النظام يعمل بكفاءة وأمان كاملين ومتصل بقاعدة البيانات المحلية السريعة.", color = MedicalGreen)
                     }
