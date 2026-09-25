@@ -1,0 +1,8 @@
+{
+  "name": "نظام وسيم الطبي PRO",
+  "description": "نظام متكامل لإدارة المراكز الطبية والعيادات ومراكز التأهيل والعلاج الطبيعي",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
