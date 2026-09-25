@@ -81,12 +81,10 @@ abstract class WaseemDatabase : RoomDatabase() {
                     WaseemDatabase::class.java,
                     "waseem_medical_pro.db"
                 )
-                    .addCallback(DatabaseCallback(scope))
-                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
 
-                // Always ensure users, branches, and seed data exist immediately!
+                // Initialize only essential operational configuration once the database is ready.
                 scope.launch(Dispatchers.IO) {
                     try {
                         ensureEssentialData(instance.clinicDao())
@@ -96,28 +94,6 @@ abstract class WaseemDatabase : RoomDatabase() {
                 }
 
                 instance
-            }
-        }
-
-        private class DatabaseCallback(
-            private val scope: CoroutineScope
-        ) : RoomDatabase.Callback() {
-            override fun onCreate(db: SupportSQLiteDatabase) {
-                super.onCreate(db)
-                INSTANCE?.let { database ->
-                    scope.launch(Dispatchers.IO) {
-                        ensureEssentialData(database.clinicDao())
-                    }
-                }
-            }
-
-            override fun onOpen(db: SupportSQLiteDatabase) {
-                super.onOpen(db)
-                INSTANCE?.let { database ->
-                    scope.launch(Dispatchers.IO) {
-                        ensureEssentialData(database.clinicDao())
-                    }
-                }
             }
         }
 
@@ -313,10 +289,8 @@ abstract class WaseemDatabase : RoomDatabase() {
                 )
             }
 
-            // 4. Ensure operational sample data if patients are 0
-            if (dao.getPatientsCountDirect() == 0) {
-                populateInitialData(dao)
-            }
+            // Do not create sample patients, appointments, financial records, or inventory automatically.
+            // Production data must be entered or restored explicitly by the center owner.
         }
 
         private suspend fun populateInitialData(dao: ClinicDao) {
