@@ -269,7 +269,15 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     suspend fun updateTherapist(therapist:Therapist)=dao.updateTherapist(therapist)
     suspend fun addDepartment(department:Department):Long=dao.insertDepartment(department)
     suspend fun addService(service:MedicalService):Long=dao.insertService(service)
-    suspend fun addInventoryItem(item:InventoryItem):Long=dao.insertInventoryItem(item)
+    suspend fun findInventoryByBarcode(barcode:String):InventoryItem?=dao.getInventoryByBarcode(barcode.trim())
+
+    suspend fun addInventoryItem(item:InventoryItem):Long{
+        val barcode=item.barcode.trim()
+        if (barcode.isNotBlank() && dao.getInventoryByBarcode(barcode) != null) {
+            throw IllegalArgumentException("الباركود مستخدم مسبقاً لصنف آخر")
+        }
+        return dao.insertInventoryItem(item.copy(barcode=barcode))
+    }
     suspend fun updateInventoryItem(item:InventoryItem)=dao.updateInventoryItem(item)
     suspend fun markAllNotificationsRead()=dao.markAllNotificationsRead()
     suspend fun clearAllNotifications()=dao.clearAllNotifications()
