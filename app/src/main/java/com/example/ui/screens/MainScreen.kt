@@ -139,12 +139,19 @@ fun MainScreen(viewModel: ClinicViewModel) {
             // Guarded Safe Navigation lambda enforcing Role Permissions
             val safeNavigateTo: (String) -> Unit = { route ->
                 val allowed = when (route) {
-                    "financial", "payroll" -> viewModel.canAccess { it.permFinancial }
+                    "financial" -> viewModel.canAccess { it.permFinancial }
+                    "payroll" -> viewModel.canAccess { it.permPayroll }
                     "reports" -> viewModel.canAccess { it.permReports }
-                    "settings", "backup" -> viewModel.canAccess { it.permSettings }
+                    "settings" -> viewModel.canAccess { it.permSettings }
+                    "backup" -> viewModel.canAccess { it.permBackup }
                     "patients" -> viewModel.canAccess { it.permPatients }
                     "appointments" -> viewModel.canAccess { it.permAppointments }
-                    "sessions" -> viewModel.canAccess { it.permSessions }
+                    "sessions", "packages" -> viewModel.canAccess { it.permSessions }
+                    "doctors" -> viewModel.canAccess { it.permDoctors }
+                    "departments" -> viewModel.canAccess { it.permDepartments }
+                    "inventory" -> viewModel.canAccess { it.permInventory }
+                    "messages", "notifications" -> viewModel.canAccess { it.permSettings }
+                    "license" -> viewModel.canAccess { it.permLicense }
                     else -> true
                 }
                 if (allowed) {
@@ -268,12 +275,20 @@ fun MainScreen(viewModel: ClinicViewModel) {
 
                             // 4. الإدارة والفروع والمستخدمين (للمدير والمالك)
                             DrawerItem("🏢 بيانات المركز والفروع", Icons.Default.Business, false) {
-                                scope.launch { drawerState.close() }
-                                showManageBranchesDialog = true
+                                if (viewModel.canAccess { it.permSettings }) {
+                                    scope.launch { drawerState.close() }
+                                    showManageBranchesDialog = true
+                                } else {
+                                    Toast.makeText(context, "عذراً، لا تملك صلاحية إدارة الفروع.", Toast.LENGTH_SHORT).show()
+                                }
                             }
                             DrawerItem("👥 المستخدمون والصلاحيات", Icons.Default.Security, false) {
-                                scope.launch { drawerState.close() }
-                                showManageUsersDialog = true
+                                if (viewModel.canAccess { it.permUsers }) {
+                                    scope.launch { drawerState.close() }
+                                    showManageUsersDialog = true
+                                } else {
+                                    Toast.makeText(context, "عذراً، لا تملك صلاحية إدارة المستخدمين.", Toast.LENGTH_SHORT).show()
+                                }
                             }
 
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
