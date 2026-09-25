@@ -555,7 +555,6 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
                     val patient = currentSession?.let { repository.getPatientById(it.patientId) }
                     if (patient != null && currentSession != null) {
                         val pkg = currentSession.packageId?.let { repository.getPackageById(it) }
-                            ?: repository.getPatientById(patient.id)?.let { repository.getPackageById(it.id) }
                         val remaining = pkg?.remainingSessions ?: 0
                         val commMessage = "مرحبًا ${patient.name}\n\nتم تسجيل حضوركم في جلسة العلاج الطبيعي اليوم (جلسة رقم ${currentSession.sessionNumber}).\nالجلسات المتبقية في باقتكم: $remaining جلسة.\n\nنتمنى لكم دوام الصحة والعافية - مركز وسيم الطبي."
 
