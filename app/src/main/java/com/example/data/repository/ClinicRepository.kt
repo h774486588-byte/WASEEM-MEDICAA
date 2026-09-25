@@ -241,18 +241,18 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     suspend fun createReceiptVoucher(patientId:Long,amount:Double,paymentMethod:String,statement:String,branchId:Long=1):Result<Long>{
         return inTransaction {
 
-            if(amount<=0)return Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
-            val patient=dao.getPatientById(patientId)?:return Result.failure(IllegalArgumentException("المريض غير موجود"))
+            if(amount<=0)return@inTransaction Result.failure(IllegalArgumentException("المبلغ يجب أن يكون أكبر من صفر"))
+            val patient=dao.getPatientById(patientId)?:return@inTransaction Result.failure(IllegalArgumentException("المريض غير موجود"))
             val prevBalance=patient.balanceDue
-            if (prevBalance <= 0.0) return Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
-            if (amount > prevBalance) return Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
+            if (prevBalance <= 0.0) return@inTransaction Result.failure(IllegalStateException("لا يوجد رصيد مستحق على المريض لإصدار سند قبض"))
+            if (amount > prevBalance) return@inTransaction Result.failure(IllegalArgumentException("المبلغ المقبوض أكبر من الرصيد المستحق للمريض"))
             val voucherNumber="RV-${System.currentTimeMillis()}"
             val today=SimpleDateFormat("yyyy-MM-dd",Locale.ENGLISH).format(Date())
             val remainingBalance=prevBalance-amount
             dao.updatePatient(patient.copy(balanceDue=remainingBalance)); val id=dao.insertReceipt(ReceiptVoucher(voucherNumber=voucherNumber,date=today,patientId=patientId,amount=amount,paymentMethod=paymentMethod,statement=statement.trim(),previousBalance=prevBalance,remainingBalance=remainingBalance,branchId=branchId))
             dao.insertNotification(AppNotification(title="سند قبض مسجل",message="تم تسجيل سند قبض رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي.",type="قبض",relatedId=id))
             dao.insertMessage(AppMessage(recipientName=patient.name,recipientPhone=patient.phone,content="مرحبًا ${patient.name}\n\nتم استلام مبلغ: ${"%,.0f".format(Locale.ENGLISH,amount)} ر.ي\nسند رقم: $voucherNumber\nالرصيد السابق: ${"%,.0f".format(Locale.ENGLISH,prevBalance)} ر.ي\nالرصيد المتبقي: ${"%,.0f".format(Locale.ENGLISH,remainingBalance)} ر.ي",templateType="RECEIPT"))
-            dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند قبض",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return Result.success(id)
+            dao.insertAuditLog(AuditLog(user="المحاسب",action="إنشاء سند قبض",details="سند رقم $voucherNumber للمريض ${patient.name} بمبلغ $amount ر.ي - فرع $branchId",previousData="الرصيد السابق: $prevBalance",newData="الرصيد الجديد: $remainingBalance")); return@inTransaction Result.success(id)
         }
     }
 
