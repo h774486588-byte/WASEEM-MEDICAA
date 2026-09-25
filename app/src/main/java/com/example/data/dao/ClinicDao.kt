@@ -5,29 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.example.data.models.AppLicense
-import com.example.data.models.AppMessage
-import com.example.data.models.AppNotification
-import com.example.data.models.AppUser
-import com.example.data.models.Appointment
-import com.example.data.models.AuditLog
-import com.example.data.models.Branch
-import com.example.data.models.CenterSettings
-import com.example.data.models.ClinicSession
-import com.example.data.models.Department
-import com.example.data.models.DiagnosisItem
-import com.example.data.models.Doctor
-import com.example.data.models.Employee
-import com.example.data.models.ExpenseVoucher
-import com.example.data.models.InventoryItem
-import com.example.data.models.MedicalService
-import com.example.data.models.MessageTemplate
-import com.example.data.models.PackageSession
-import com.example.data.models.Patient
-import com.example.data.models.PatientPackage
-import com.example.data.models.ReceiptVoucher
-import com.example.data.models.SalaryDeduction
-import com.example.data.models.Therapist
+import com.example.data.models.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -65,15 +43,16 @@ interface ClinicDao {
 
     @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") fun getAllAppointments(): Flow<List<Appointment>>
     @Query("SELECT * FROM appointments WHERE date = :date ORDER BY timeSlot ASC") fun getAppointmentsByDate(date: String): Flow<List<Appointment>>
-    @Query("SELECT * FROM appointments WHERE doctorId = :doctorId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' LIMIT 1") suspend fun checkDoctorAppointmentConflict(doctorId: Long, date: String, timeSlot: String): Appointment?
-    @Query("SELECT * FROM appointments WHERE therapistId = :therapistId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' LIMIT 1") suspend fun checkTherapistAppointmentConflict(therapistId: Long, date: String, timeSlot: String): Appointment?
+    @Query("SELECT * FROM appointments WHERE doctorId = :doctorId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkDoctorAppointmentConflict(doctorId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
+    @Query("SELECT * FROM appointments WHERE therapistId = :therapistId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkTherapistAppointmentConflict(therapistId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAppointment(appointment: Appointment): Long
     @Update suspend fun updateAppointment(appointment: Appointment)
+    @Query("UPDATE appointments SET status = :newStatus WHERE id = :appointmentId") suspend fun updateAppointmentStatus(appointmentId: Long, newStatus: String)
     @Query("DELETE FROM appointments WHERE id = :id") suspend fun deleteAppointment(id: Long)
 
     @Query("SELECT * FROM packages ORDER BY id DESC") fun getAllPackages(): Flow<List<PatientPackage>>
     @Query("SELECT * FROM packages WHERE patientId = :patientId ORDER BY id DESC") fun getPackagesByPatient(patientId: Long): Flow<List<PatientPackage>>
-    @Query("SELECT * FROM packages WHERE patientId = :patientId AND status = 'نشطة' AND remainingSessions > 0 LIMIT 1") suspend fun getActivePackageForPatient(patientId: Long): PatientPackage?
+    @Query("SELECT * FROM packages WHERE patientId = :patientId AND status = 'نشطة' AND remainingSessions > 0 ORDER BY id DESC LIMIT 1") suspend fun getActivePackageForPatient(patientId: Long): PatientPackage?
     @Query("SELECT * FROM packages WHERE id = :id") suspend fun getPackageById(id: Long): PatientPackage?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPackage(pkg: PatientPackage): Long
     @Update suspend fun updatePackage(pkg: PatientPackage)
@@ -137,8 +116,11 @@ interface ClinicDao {
     @Query("DELETE FROM appointments") suspend fun clearAppointments()
     @Query("DELETE FROM sessions") suspend fun clearSessions()
     @Query("DELETE FROM packages") suspend fun clearPackages()
+    @Query("DELETE FROM package_sessions") suspend fun clearPackageSessions()
     @Query("DELETE FROM receipts") suspend fun clearReceipts()
     @Query("DELETE FROM expenses") suspend fun clearExpenses()
+    @Query("DELETE FROM salary_deductions") suspend fun clearDeductions()
+    @Query("DELETE FROM audit_logs") suspend fun clearAuditLogs()
 
     @Query("SELECT * FROM branches ORDER BY isMainBranch DESC, name ASC") fun getAllBranches(): Flow<List<Branch>>
     @Query("SELECT * FROM branches WHERE id = :id") suspend fun getBranchById(id: Long): Branch?
@@ -158,8 +140,4 @@ interface ClinicDao {
     @Query("UPDATE users SET passwordHash = :newPassword WHERE id = :userId") suspend fun updateUserPassword(userId: Long, newPassword: String)
     @Query("DELETE FROM users WHERE id = :id AND isSystemOwner = 0") suspend fun deleteUser(id: Long)
     @Query("SELECT COUNT(*) FROM users") suspend fun getUsersCountDirect(): Int
-
-    @Query("DELETE FROM package_sessions") suspend fun clearPackageSessions()
-    @Query("DELETE FROM salary_deductions") suspend fun clearDeductions()
-    @Query("DELETE FROM audit_logs") suspend fun clearAuditLogs()
 }
