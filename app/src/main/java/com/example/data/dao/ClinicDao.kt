@@ -49,6 +49,7 @@ interface ClinicDao {
 
     @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") fun getAllAppointments(): Flow<List<Appointment>>
     @Query("SELECT * FROM appointments ORDER BY date DESC, timeSlot ASC") suspend fun getAllAppointmentsSnapshot(): List<Appointment>
+    @Query("SELECT * FROM appointments WHERE id = :id") suspend fun getAppointmentById(id: Long): Appointment?
     @Query("SELECT * FROM appointments WHERE date = :date ORDER BY timeSlot ASC") fun getAppointmentsByDate(date: String): Flow<List<Appointment>>
     @Query("SELECT * FROM appointments WHERE doctorId = :doctorId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkDoctorAppointmentConflict(doctorId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
     @Query("SELECT * FROM appointments WHERE therapistId = :therapistId AND date = :date AND timeSlot = :timeSlot AND status != 'أُلغي' AND id != :excludedId LIMIT 1") suspend fun checkTherapistAppointmentConflict(therapistId: Long, date: String, timeSlot: String, excludedId: Long = -1): Appointment?
@@ -116,6 +117,7 @@ interface ClinicDao {
     @Query("SELECT * FROM messages ORDER BY createdAt DESC") suspend fun getAllMessagesSnapshot(): List<AppMessage>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertMessage(message: AppMessage): Long
     @Query("UPDATE messages SET status = :status WHERE id = :id") suspend fun updateMessageStatus(id: Long, status: String)
+
     @Query("SELECT * FROM message_templates") fun getAllTemplates(): Flow<List<MessageTemplate>>
     @Query("SELECT * FROM message_templates") suspend fun getAllTemplatesSnapshot(): List<MessageTemplate>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTemplate(template: MessageTemplate): Long
