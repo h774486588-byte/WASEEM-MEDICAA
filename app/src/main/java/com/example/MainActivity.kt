@@ -4,36 +4,93 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.example.data.database.WaseemDatabase
 import com.example.data.repository.ClinicRepository
 import com.example.ui.screens.MainScreen
 import com.example.ui.theme.WaseemMedicalTheme
 import com.example.ui.viewmodel.ClinicViewModel
-import com.example.ui.viewmodel.ClinicViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
-    private val database by lazy {
-        WaseemDatabase.getDatabase(this, lifecycleScope)
-    }
-
-    private val repository by lazy {
-        ClinicRepository(database.clinicDao(), database)
-    }
-
-    private val clinicViewModel: ClinicViewModel by viewModels {
-        ClinicViewModelFactory(repository)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.install(this)
         enableEdgeToEdge()
+
+        val previousCrash = CrashReporter.readAndClear(this)
+        if (previousCrash != null) {
+            showStartupError(
+                "تم تسجيل تعطل سابق للتطبيق. هذه التفاصيل تساعد على تحديد السبب الحقيقي.",
+                previousCrash
+            )
+            return
+        }
+
+        try {
+            val database = WaseemDatabase.getDatabase(this, lifecycleScope)
+            val repository = ClinicRepository(database.clinicDao(), database)
+            val viewModel = ClinicViewModel(repository)
+
+            setContent {
+                WaseemMedicalTheme {
+                    MainScreen(viewModel = viewModel)
+                }
+            }
+        } catch (error: Throwable) {
+            showStartupError(
+                "تعذر تشغيل النظام أثناء التهيئة. أرسل نص الخطأ الظاهر للمطور.",
+                error.stackTraceToString()
+            )
+        }
+    }
+
+    private fun showStartupError(summary: String, details: String) {
         setContent {
             WaseemMedicalTheme {
-                MainScreen(viewModel = clinicViewModel)
+                StartupErrorScreen(summary = summary, details = details)
             }
+        }
+    }
+}
+
+@Composable
+private fun StartupErrorScreen(summary: String, details: String) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "نظام وسيم الطبي PRO",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+        )
+        Text(
+            text = summary,
+            modifier = Modifier.padding(top = 16.dp),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = details,
+            modifier = Modifier.padding(top = 16.dp),
+            fontSize = 11.sp,
+            lineHeight = 14.sp
+        )
+        TextButton(onClick = {}) {
+            Text("تم")
         }
     }
 }
