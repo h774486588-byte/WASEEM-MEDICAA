@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -73,7 +76,8 @@ fun BackupScreen(
 
     var autoSyncEnabled by remember { mutableStateOf(settings?.autoSyncGoogleDrive ?: false) }
     var selectedInterval by remember { mutableIntStateOf(settings?.syncIntervalHours ?: 6) }
-    var lastBackupTime by remember { mutableStateOf("2026-09-24 10:45 ص") }
+    var lastBackupTime by remember { mutableStateOf("لا توجد نسخة محفوظة بعد") }
+    var pendingBackupJson by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
 
     val intervals = listOf(
@@ -83,6 +87,43 @@ fun BackupScreen(
         Pair(12, "كل 12 ساعة"),
         Pair(24, "مرة يوميًا")
     )
+
+    val createBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        val json = pendingBackupJson
+        pendingBackupJson = null
+        if (uri == null || json == null) return@rememberLauncherForActivityResult
+
+        val saved = runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
+                ?: error("تعذر فتح ملف الحفظ")
+        }.isSuccess
+
+        if (saved) {
+            lastBackupTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ENGLISH).format(Date())
+            Toast.makeText(context, "تم حفظ النسخة الاحتياطية كاملةً بنجاح.", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "تعذر حفظ النسخة الاحتياطية.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val json = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                ?: error("تعذر قراءة الملف")
+        }.getOrElse {
+            Toast.makeText(context, "تعذر قراءة ملف النسخة الاحتياطية.", Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+
+        viewModel.restoreBackupJson(json) { success, message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -131,10 +172,17 @@ fun BackupScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = {
-                                    val nowFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ENGLISH)
-                                    lastBackupTime = nowFormat.format(Date())
-                                    val json = viewModel.exportBackupJson()
-                                    Toast.makeText(context, "تم إنشاء النسخة الاحتياطية بنجاح وحفظها محلياً!", Toast.LENGTH_LONG).show()
+                                    viewModel.createBackup { success, result ->
+                                        if (!success) {
+                                            Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                            return@createBackup
+                                        }
+                                        pendingBackupJson = result
+                                        val fileName = "WaseemMedicalPro_Backup_" +
+                                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(Date()) +
+                                            ".json"
+                                        createBackupLauncher.launch(fileName)
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MedicalBlue),
                                 modifier = Modifier.weight(1f).testTag("create_backup_btn"),
@@ -218,7 +266,7 @@ fun BackupScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("حالة آخر مزامنة: نجحت ✓", color = MedicalGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                                    Text("2026-09-24 10:00 ص", style = MaterialTheme.typography.bodySmall)
+                                    Text("الحالة محفوظة محليًا عند إنشاء النسخة.", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
@@ -241,7 +289,7 @@ fun BackupScreen(
                 Button(
                     onClick = {
                         showRestoreConfirmDialog = false
-                        Toast.makeText(context, "تم التحقق من سلامة النسخة واستعادة البيانات بنجاح!", Toast.LENGTH_LONG).show()
+                        restoreBackupLauncher.launch(arrayOf("application/json", "text/plain"))
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MedicalRed)
                 ) {
