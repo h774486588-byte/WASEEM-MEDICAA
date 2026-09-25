@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.dao.ClinicDao
 import com.example.data.models.AppLicense
@@ -63,7 +64,7 @@ import java.util.UUID
         Branch::class,
         AppUser::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class WaseemDatabase : RoomDatabase() {
@@ -71,6 +72,12 @@ abstract class WaseemDatabase : RoomDatabase() {
     abstract fun clinicDao(): ClinicDao
 
     companion object {
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE inventory ADD COLUMN barcode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: WaseemDatabase? = null
 
@@ -81,6 +88,7 @@ abstract class WaseemDatabase : RoomDatabase() {
                     WaseemDatabase::class.java,
                     "waseem_medical_pro.db"
                 )
+                    .addMigrations(MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
 
