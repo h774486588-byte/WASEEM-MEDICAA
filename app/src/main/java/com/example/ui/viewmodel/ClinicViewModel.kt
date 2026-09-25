@@ -337,7 +337,7 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
         notes: String,
         initialBalance: Double = 0.0,
         branchId: Long? = null,
-        autoCreateFirstSessionOrAppt: Boolean = true,
+        autoCreateFirstSessionOrAppt: Boolean = false,
         notifyDoctor: Boolean = true,
         onResult: (Boolean, String) -> Unit
     ) {
@@ -594,7 +594,7 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
         notes: String,
         initialBalance: Double = 0.0,
         branchId: Long? = null,
-        autoCreateFirstSessionOrAppt: Boolean = true,
+        autoCreateFirstSessionOrAppt: Boolean = false,
         notifyDoctor: Boolean = true,
         notifyWhatsApp: Boolean = false,
         notifySMS: Boolean = false,
