@@ -16,12 +16,23 @@ jobs:
   build:
     name: Build and Test APK
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-      - name: Runner preflight
+      - name: Checkout source manually
+        shell: bash
         run: |
           set -euxo pipefail
-          echo "Checkout preflight OK"
-          git --version
+          git init
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git fetch --depth 1 origin "${{ github.sha }}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Runner preflight
+        shell: bash
+        run: |
+          set -euxo pipefail
+          java -version
+          gradle --version
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          test -d app/src/main
