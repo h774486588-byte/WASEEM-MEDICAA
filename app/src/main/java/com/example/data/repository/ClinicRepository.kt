@@ -35,7 +35,7 @@ import java.util.Locale
 import kotlin.math.max
 
 private object PasswordHasher {
-    private const val PREFIX = "PBKDF2_SHA256:"
+    private const val PREFIX = "PBKDF2_SHA1:"
     private const val ITERATIONS = 120_000
     private const val SALT_BYTES = 16
     private const val KEY_LENGTH = 256
@@ -65,7 +65,7 @@ private object PasswordHasher {
     private fun derive(password: String, salt: ByteArray, iterations: Int): ByteArray {
         val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH)
         return try {
-            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).encoded
         } finally {
             spec.clearPassword()
         }
@@ -275,12 +275,14 @@ class ClinicRepository(private val dao: ClinicDao) {
         if (!PasswordHasher.matches(p, user.passwordHash)) return null
 
         // Transparently migrate legacy plaintext credentials to a salted PBKDF2 hash.
-        if (!PasswordHasher.isHashed(user.passwordHash)) {
-            dao.updateUserPassword(user.id, PasswordHasher.hash(p))
+        val storedHash = if (PasswordHasher.isHashed(user.passwordHash)) {
+            user.passwordHash
+        } else {
+            PasswordHasher.hash(p).also { dao.updateUserPassword(user.id, it) }
         }
 
         dao.insertAuditLog(AuditLog(user=user.fullName,action="تسجيل دخول ناجح",details="تم تسجيل الدخول باسم: ${user.username} (${user.role})"))
-        return if (PasswordHasher.isHashed(user.passwordHash)) user else user.copy(passwordHash=PasswordHasher.hash(p))
+        return user.copy(passwordHash=storedHash)
     }
     suspend fun getUserByUsername(username:String):AppUser?=dao.getUserByUsername(username.trim())
 
