@@ -38,6 +38,30 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+private object BootstrapPasswordHasher {
+    private const val PREFIX = "PBKDF2_SHA1:"
+    private const val ITERATIONS = 120_000
+    private const val SALT_BYTES = 16
+    private const val KEY_LENGTH = 256
+
+    fun hash(password: String): String {
+        val salt = ByteArray(SALT_BYTES)
+        java.security.SecureRandom().nextBytes(salt)
+        val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
+        return try {
+            val derived = javax.crypto.SecretKeyFactory
+                .getInstance("PBKDF2WithHmacSHA1")
+                .generateSecret(spec)
+                .encoded
+            PREFIX + ITERATIONS + ":" + salt.toHexString() + ":" + derived.toHexString()
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
+}
+
 @Database(
     entities = [
         Patient::class,
@@ -156,7 +180,7 @@ abstract class WaseemDatabase : RoomDatabase() {
                 dao.insertUser(
                     AppUser(
                         username = "admin",
-                        passwordHash = "admin",
+                        passwordHash = BootstrapPasswordHasher.hash("admin"),
                         fullName = "مدير المركز (إدارة عامة)",
                         role = "ADMIN",
                         branchId = 1,
@@ -183,7 +207,7 @@ abstract class WaseemDatabase : RoomDatabase() {
                 dao.insertUser(
                     AppUser(
                         username = "Waseem",
-                        passwordHash = "W772357240",
+                        passwordHash = BootstrapPasswordHasher.hash("W772357240"),
                         fullName = "م. وسيم الفرح (مالك ومطور النظام)",
                         role = "SUPER_ADMIN",
                         branchId = null,
@@ -210,7 +234,7 @@ abstract class WaseemDatabase : RoomDatabase() {
                 dao.insertUser(
                     AppUser(
                         username = "mohammed",
-                        passwordHash = "1234",
+                        passwordHash = BootstrapPasswordHasher.hash("1234"),
                         fullName = "محمد أحمد — استقبال",
                         role = "RECEPTIONIST",
                         branchId = 1,
@@ -237,7 +261,7 @@ abstract class WaseemDatabase : RoomDatabase() {
                 dao.insertUser(
                     AppUser(
                         username = "ahmed",
-                        passwordHash = "1234",
+                        passwordHash = BootstrapPasswordHasher.hash("1234"),
                         fullName = "أحمد علي — محاسب",
                         role = "ACCOUNTANT",
                         branchId = 1,
@@ -350,7 +374,7 @@ abstract class WaseemDatabase : RoomDatabase() {
             dao.insertUser(
                 AppUser(
                     username = "Waseem",
-                    passwordHash = "W772357240",
+                    passwordHash = BootstrapPasswordHasher.hash("W772357240"),
                     fullName = "م. وسيم الفرح (مالك ومطور النظام)",
                     role = "SUPER_ADMIN",
                     branchId = null, // All branches
@@ -376,7 +400,7 @@ abstract class WaseemDatabase : RoomDatabase() {
             dao.insertUser(
                 AppUser(
                     username = "admin",
-                    passwordHash = "admin",
+                    passwordHash = BootstrapPasswordHasher.hash("admin"),
                     fullName = "مدير المركز (إدارة عامة)",
                     role = "ADMIN",
                     branchId = 1,
@@ -402,7 +426,7 @@ abstract class WaseemDatabase : RoomDatabase() {
             dao.insertUser(
                 AppUser(
                     username = "mohammed",
-                    passwordHash = "1234",
+                    passwordHash = BootstrapPasswordHasher.hash("1234"),
                     fullName = "محمد أحمد — استقبال",
                     role = "RECEPTIONIST",
                     branchId = 1,
@@ -428,7 +452,7 @@ abstract class WaseemDatabase : RoomDatabase() {
             dao.insertUser(
                 AppUser(
                     username = "ahmed",
-                    passwordHash = "1234",
+                    passwordHash = BootstrapPasswordHasher.hash("1234"),
                     fullName = "أحمد علي — محاسب",
                     role = "ACCOUNTANT",
                     branchId = 1,
