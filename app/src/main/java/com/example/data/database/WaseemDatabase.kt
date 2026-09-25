@@ -59,7 +59,7 @@ private object BootstrapPasswordHasher {
         }
     }
 
-    private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
+    private fun ByteArray.toHexString(): String = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
 }
 
 @Database(
