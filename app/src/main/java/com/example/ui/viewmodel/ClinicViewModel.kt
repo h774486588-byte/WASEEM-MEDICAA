@@ -871,8 +871,12 @@ class ClinicViewModel(private val repository: ClinicRepository) : ViewModel() {
     fun adminResetPassword(targetUserId: Long, newPass: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val performer = _currentUser.value?.fullName ?: "م. وسيم الفرح (مالك النظام)"
-            repository.updateUserPassword(targetUserId, newPass.trim(), performer)
-            onResult(true)
+            try {
+                repository.updateUserPassword(targetUserId, newPass.trim(), performer)
+                onResult(true)
+            } catch (e: Exception) {
+                onResult(false)
+            }
         }
     }
 
