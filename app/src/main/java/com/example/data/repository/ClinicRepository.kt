@@ -131,6 +131,10 @@ class ClinicRepository(private val dao: ClinicDao, private val database: WaseemD
     fun getPackagesByPatient(patientId: Long): Flow<List<PatientPackage>> = dao.getPackagesByPatient(patientId)
     fun getReceiptsByPatient(patientId: Long): Flow<List<ReceiptVoucher>> = dao.getReceiptsByPatient(patientId)
 
+    suspend fun getPatientById(patientId: Long): Patient? = dao.getPatientById(patientId)
+    suspend fun getSessionById(sessionId: Long): ClinicSession? = dao.getSessionById(sessionId)
+    suspend fun getPackageById(packageId: Long): PatientPackage? = dao.getPackageById(packageId)
+
     suspend fun registerPatient(name: String, phone: String, gender: String, dateOfBirth: String, address: String, maritalStatus: String, profession: String, referralSource: String, doctorId: Long?, therapistId: Long?, departmentId: Long?, serviceId: Long? = null, diagnosis: String, complaint: String, notes: String, initialBalance: Double = 0.0, branchId: Long = 1, autoCreateFirstSessionOrAppt: Boolean = true, notifyDoctor: Boolean = true): Result<Long> {
         if (name.isBlank()) return Result.failure(IllegalArgumentException("اسم المريض مطلوب"))
         if (phone.isBlank()) return Result.failure(IllegalArgumentException("رقم الهاتف مطلوب"))
